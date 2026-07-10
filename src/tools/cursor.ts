@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { dispatchLua, luaCall } from "../hyprctl.js";
+import { dispatchLua } from "../hyprctl.js";
+import { moveCursorExpr, moveCursorToCornerExpr } from "../dispatch-expressions.js";
 
 function text(payload: unknown) {
   return {
@@ -13,10 +14,6 @@ function text(payload: unknown) {
   };
 }
 
-function selectorFor(target: string): string {
-  return target.startsWith("0x") ? `address:${target}` : target;
-}
-
 export function registerCursorTools(server: McpServer) {
   server.tool(
     "move_cursor",
@@ -26,7 +23,7 @@ export function registerCursorTools(server: McpServer) {
       y: z.number(),
     },
     async ({ x, y }) => {
-      const out = await dispatchLua(luaCall("hl.dsp.cursor.move", { x, y }));
+      const out = await dispatchLua(moveCursorExpr({ x, y }));
       return text(out || `Moved cursor to ${x},${y}`);
     },
   );
@@ -45,11 +42,7 @@ export function registerCursorTools(server: McpServer) {
       target: z.string().optional().describe("Window address or selector; omit for active window"),
     },
     async ({ corner, target }) => {
-      const expr = luaCall("hl.dsp.cursor.move_to_corner", {
-        corner,
-        window: target ? selectorFor(target) : undefined,
-      });
-      const out = await dispatchLua(expr);
+      const out = await dispatchLua(moveCursorToCornerExpr({ corner, target }));
       return text(out || `Moved cursor to corner ${corner}`);
     },
   );

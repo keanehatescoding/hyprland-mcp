@@ -2,7 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { dispatchLua, luaCall } from "../hyprctl.js";
+import { dispatchLua } from "../hyprctl.js";
+import { notifyFallbackExpr, dismissNotificationsExpr } from "../dispatch-expressions.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -47,13 +48,7 @@ export function registerNotifyTools(server: McpServer) {
         return text(`Notification sent: ${title}`);
       } catch (err: any) {
         const fallbackMsg = body ? `${title}: ${body}` : title;
-        const expr = luaCall("hl.dsp.notify", {
-          icon: -1,
-          time: timeout_ms ?? 5000,
-          color: "rgb(ffffff)",
-          message: fallbackMsg,
-        });
-        await dispatchLua(expr);
+        await dispatchLua(notifyFallbackExpr({ message: fallbackMsg, timeMs: timeout_ms ?? 5000 }));
         return text(
           `notify-send unavailable (${err.message}); attempted Hyprland's built-in notify overlay ` +
             `as a fallback (best-effort Lua path — verify it actually fired on screen).`,
@@ -69,7 +64,7 @@ export function registerNotifyTools(server: McpServer) {
       "errors, use hyprland_dispatch with a raw_expression verified against your Lua LSP stubs.",
     {},
     async () => {
-      await dispatchLua(luaCall("hl.dsp.dismiss_notify"));
+      await dispatchLua(dismissNotificationsExpr());
       return text("Dismissed on-screen notifications");
     },
   );

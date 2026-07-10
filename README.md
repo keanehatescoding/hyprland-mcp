@@ -114,6 +114,31 @@ months of each other, with dispatcher-behavior bugfixes in each). If something t
 used to work here breaks after a Hyprland update, check the dispatcher's current
 signature on the wiki before assuming the MCP server itself regressed.
 
+## Testing
+
+`src/dispatch-expressions.ts` holds pure, side-effect-free builders for every Lua
+expression this project sends to `hyprctl dispatch` — no `hyprctl`/`child_process`
+calls, so they're unit-testable without a real Hyprland session:
+
+```bash
+npm test
+```
+
+This runs `tsc` then Node's built-in test runner over
+`src/__tests__/dispatch-expressions.test.ts`, asserting the exact string each
+builder produces — including the two verbatim wiki examples (`window.tag` with a
+target, `workspace.toggle_special`'s bare-string argument). This is what actually
+catches syntax drift: when a future Hyprland release changes an `hl.dsp.*` shape,
+update the builder and its test together rather than only touching the call site
+buried inside a tool handler.
+
+It already caught one real bug during development: `denyWindowFromGroupExpr()`
+with no target was emitting `hl.dsp.window.deny_from_group({  })` (an empty table)
+instead of a clean `()`, because the builder always passed an args object even when
+every key in it was `undefined`. Worth knowing if you add a new builder where a
+target/selector is the *only* possible key — build the whole args object
+conditionally rather than relying on `luaCall`'s undefined-key filtering to save you.
+
 ## Design notes
 
 - All `hyprctl` calls go through `execFile` (never a shell), so arguments can never be

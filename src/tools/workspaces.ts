@@ -1,6 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { dispatchLua, luaCall, runHyprctlJson, HyprWorkspace } from "../hyprctl.js";
+import { dispatchLua, runHyprctlJson, HyprWorkspace } from "../hyprctl.js";
+import {
+  switchWorkspaceExpr,
+  moveWorkspaceToMonitorExpr,
+  renameWorkspaceExpr,
+  toggleSpecialWorkspaceExpr,
+} from "../dispatch-expressions.js";
 
 function text(payload: unknown) {
   return {
@@ -43,9 +49,7 @@ export function registerWorkspaceTools(server: McpServer) {
         .describe("Workspace id, name, or relative selector like 'e+1' / 'e-1'"),
     },
     async ({ workspace }) => {
-      // hl.dsp.workspace.change() is the 0.55+ Lua form of the old `workspace` dispatcher.
-      const expr = luaCall("hl.dsp.workspace.change", { workspace });
-      const out = await dispatchLua(expr);
+      const out = await dispatchLua(switchWorkspaceExpr(workspace));
       return text(out || `Switched to workspace ${workspace}`);
     },
   );
@@ -58,8 +62,7 @@ export function registerWorkspaceTools(server: McpServer) {
       monitor: z.union([z.number(), z.string()]).describe("Monitor id or name"),
     },
     async ({ workspace, monitor }) => {
-      const expr = luaCall("hl.dsp.workspace.move_to_monitor", { workspace, monitor });
-      const out = await dispatchLua(expr);
+      const out = await dispatchLua(moveWorkspaceToMonitorExpr({ workspace, monitor }));
       return text(out || `Moved workspace ${workspace} to monitor ${monitor}`);
     },
   );
@@ -72,8 +75,7 @@ export function registerWorkspaceTools(server: McpServer) {
       name: z.string(),
     },
     async ({ workspace, name }) => {
-      const expr = luaCall("hl.dsp.workspace.rename", { workspace, name });
-      const out = await dispatchLua(expr);
+      const out = await dispatchLua(renameWorkspaceExpr({ workspace, name }));
       return text(out || `Renamed workspace ${workspace} to ${name}`);
     },
   );
@@ -88,8 +90,7 @@ export function registerWorkspaceTools(server: McpServer) {
       name: z.string().describe("Special workspace name, without the 'special:' prefix, e.g. 'magic'"),
     },
     async ({ name }) => {
-      const expr = luaCall("hl.dsp.workspace.toggle_special", name);
-      const out = await dispatchLua(expr);
+      const out = await dispatchLua(toggleSpecialWorkspaceExpr(name));
       return text(out || `Toggled special workspace '${name}'`);
     },
   );

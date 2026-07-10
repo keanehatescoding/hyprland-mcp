@@ -1,6 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { dispatchLua, luaCall } from "../hyprctl.js";
+import { dispatchLua } from "../hyprctl.js";
+import {
+  toggleGroupExpr,
+  groupCycleExpr,
+  toggleGroupLockExpr,
+  denyWindowFromGroupExpr,
+} from "../dispatch-expressions.js";
 
 function text(payload: unknown) {
   return {
@@ -13,10 +19,6 @@ function text(payload: unknown) {
   };
 }
 
-function selectorFor(target: string): string {
-  return target.startsWith("0x") ? `address:${target}` : target;
-}
-
 export function registerGroupTools(server: McpServer) {
   server.tool(
     "toggle_group",
@@ -24,7 +26,7 @@ export function registerGroupTools(server: McpServer) {
       "already grouped. Confirmed: hl.dsp.group.toggle().",
     {},
     async () => {
-      const out = await dispatchLua(luaCall("hl.dsp.group.toggle"));
+      const out = await dispatchLua(toggleGroupExpr());
       return text(out || "Toggled group on active window");
     },
   );
@@ -37,7 +39,7 @@ export function registerGroupTools(server: McpServer) {
       direction: z.enum(["next", "prev"]),
     },
     async ({ direction }) => {
-      const out = await dispatchLua(luaCall(`hl.dsp.group.${direction}`));
+      const out = await dispatchLua(groupCycleExpr(direction));
       return text(out || `Cycled to ${direction} window in group`);
     },
   );
@@ -51,7 +53,7 @@ export function registerGroupTools(server: McpServer) {
       "raw_expression like \"hl.dsp.group.lock({ action = 'toggle' })\" instead.",
     {},
     async () => {
-      const out = await dispatchLua(luaCall("hl.dsp.group.lock"));
+      const out = await dispatchLua(toggleGroupLockExpr());
       return text(out || "Toggled group lock");
     },
   );
@@ -66,10 +68,7 @@ export function registerGroupTools(server: McpServer) {
       target: z.string().optional().describe("Window address or selector; omit for active window"),
     },
     async ({ target }) => {
-      const expr = luaCall("hl.dsp.window.deny_from_group", {
-        window: target ? selectorFor(target) : undefined,
-      });
-      const out = await dispatchLua(expr);
+      const out = await dispatchLua(denyWindowFromGroupExpr(target));
       return text(out || "Toggled deny-from-group on window");
     },
   );

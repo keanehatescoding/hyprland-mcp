@@ -12,7 +12,8 @@
   "scripts": {
     "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', 0o755)\"",
     "watch": "tsc --watch",
-    "start": "node build/index.js"
+    "start": "node build/index.js",
+    "test": "tsc && node --test build/__tests__/*.test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

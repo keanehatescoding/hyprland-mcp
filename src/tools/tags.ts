@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { dispatchLua, luaCall } from "../hyprctl.js";
+import { dispatchLua } from "../hyprctl.js";
+import { tagWindowExpr } from "../dispatch-expressions.js";
 
 function text(payload: unknown) {
   return {
@@ -11,10 +12,6 @@ function text(payload: unknown) {
       },
     ],
   };
-}
-
-function selectorFor(target: string): string {
-  return target.startsWith("0x") ? `address:${target}` : target;
 }
 
 export function registerTagTools(server: McpServer) {
@@ -36,12 +33,9 @@ export function registerTagTools(server: McpServer) {
         .describe("Window address or selector; omit to tag the currently active window"),
     },
     async ({ tag, target }) => {
-      const expr = luaCall("hl.dsp.window.tag", {
-        tag,
-        window: target ? selectorFor(target) : undefined,
-      });
-      const out = await dispatchLua(expr);
+      const out = await dispatchLua(tagWindowExpr({ tag, target }));
       return text(out || `Applied tag '${tag}'${target ? ` to ${target}` : ""}`);
     },
   );
 }
+

@@ -49,9 +49,10 @@ still exists.
 
 Since Hyprland 0.55, `hyprctl dispatch <arg>` parses `<arg>` as a Lua expression that
 must evaluate to a dispatcher table (something built from `hl.dsp.*`) — not the old
-`hyprctl dispatch <name> <args>` positional form. Every dedicated tool in this
-project already emits the new form under the hood, so this normally isn't something
-you need to think about. It matters when:
+`hyprctl dispatch <name> <args>` positional form. Every dedicated tool builds its
+expression via a pure function in `src/dispatch-expressions.ts` (unit tested in
+`src/__tests__/dispatch-expressions.test.ts` — run `npm test`), so this normally
+isn't something you need to think about. It matters when:
 
 - `hyprland_dispatch` (the escape hatch) is used — give it `path` + `args` (a plain
   object) for the common case, or a full `raw_expression` string for dispatchers that

@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { dispatchLua, luaCall, runHyprctl, runHyprctlJson, HyprMonitor } from "../hyprctl.js";
+import { dispatchLua, runHyprctl, runHyprctlJson, HyprMonitor } from "../hyprctl.js";
+import { focusMonitorExpr } from "../dispatch-expressions.js";
 
 function text(payload: unknown) {
   return {
@@ -35,8 +36,7 @@ export function registerMonitorTools(server: McpServer) {
       monitor: z.union([z.number(), z.string()]).describe("Monitor id, name, or direction (l/r/u/d)"),
     },
     async ({ monitor }) => {
-      const expr = luaCall("hl.dsp.focus", { monitor });
-      const out = await dispatchLua(expr);
+      const out = await dispatchLua(focusMonitorExpr(monitor));
       return text(out || `Focused monitor ${monitor}`);
     },
   );
