@@ -10,6 +10,7 @@ import { registerConfigTools } from "./tools/config.js";
 import { registerKeybindTools } from "./tools/keybinds.js";
 import { registerNotifyTools } from "./tools/notify.js";
 import { registerScreenshotTools } from "./tools/screenshot.js";
+import { registerLauncherTools } from "./tools/launcher.js";
 
 const server = new McpServer({
   name: "hyprland-mcp",
@@ -24,6 +25,7 @@ registerConfigTools(server);
 registerKeybindTools(server);
 registerNotifyTools(server);
 registerScreenshotTools(server);
+registerLauncherTools(server);
 
 async function main() {
   const transport = new StdioServerTransport();

@@ -33,6 +33,7 @@ rather than trying alternate arguments.
 | Keybinds | `list_keybinds` | Auditing/searching existing binds |
 | Notifications | `send_notification`, `dismiss_notifications` | Desktop notifications or on-screen overlay |
 | Screenshots | `take_screenshot`, `take_region_screenshot`, `screenshot_active_window` | Visual capture |
+| Launcher | `toggle_launcher`, `prewarm_launcher_daemon` | hyprlauncher, the first-party app picker |
 | Escape hatches | `hyprland_dispatch`, `hyprctl_raw` | Anything not covered above |
 
 **Always look up state before mutating it.** Call `list_windows` / `list_workspaces` /
@@ -126,6 +127,16 @@ yourself if structured output is wanted.
 If Hyprland's dispatcher/subcommand list has changed since this was written, check
 `hyprctl dispatch --help` or https://wiki.hyprland.org rather than guessing syntax.
 
+## hyprlauncher: not a dispatcher
+
+`toggle_launcher` and `prewarm_launcher_daemon` don't go through `hyprctl` at all —
+hyprlauncher is a separate first-party binary that self-manages as a daemon (first
+run starts it and shows its window, every run after that just toggles the window).
+Both tools spawn it detached (fire-and-forget) rather than waiting for it to exit,
+since it's a persistent GUI process, not a one-shot command. If it's not installed,
+the error message names the binary and points at the install source rather than
+failing silently.
+
 ## Common request → tool mappings
 
 - "What's open right now?" → `list_windows`
@@ -139,3 +150,4 @@ If Hyprland's dispatcher/subcommand list has changed since this was written, che
 - "Let me grab a screenshot of part of my screen" → `take_region_screenshot`
 - "What are my gaps set to?" → `get_config_option` with `"general:gaps_in"`
 - "Cycle to the next window" → `hyprland_dispatch` with `dispatcher: "cyclenext"`
+- "Open the app launcher" / "let me search for an app" → `toggle_launcher`

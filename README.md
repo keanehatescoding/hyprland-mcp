@@ -21,6 +21,9 @@ it only works when launched **inside your Hyprland session** (or with
 - **Notifications**: `send_notification`, `dismiss_notifications`
 - **Screenshots**: `take_screenshot`, `take_region_screenshot` (interactive, via slurp),
   `screenshot_active_window`
+- **App launcher**: `toggle_launcher`, `prewarm_launcher_daemon` (controls
+  [hyprlauncher](https://github.com/hyprwm/hyprlauncher), Hyprland's first-party
+  app picker — a self-toggling daemon, not a hyprctl dispatcher)
 - **Escape hatches**: `hyprland_dispatch` (any `hyprctl dispatch <dispatcher>`),
   `hyprctl_raw` (any raw `hyprctl` subcommand)
 
@@ -29,7 +32,8 @@ it only works when launched **inside your Hyprland session** (or with
 - Node.js 18+
 - Hyprland (obviously) with `hyprctl` on `PATH`
 - Optional: `grim` + `slurp` for screenshots, `notify-send` (mako/dunst/similar) for
-  notifications — these tools degrade gracefully or error clearly if missing
+  notifications, [`hyprlauncher`](https://github.com/hyprwm/hyprlauncher) for the app
+  launcher tools — these tools degrade gracefully or error clearly if missing
 
 ## Build
 
