@@ -108,6 +108,19 @@ export async function dispatchLua(expr: string): Promise<string> {
   return runHyprctl(["dispatch", expr]);
 }
 
+/**
+ * Run arbitrary Lua via `hyprctl eval '<lua>'` — for hl.* calls that are NOT
+ * dispatchers (e.g. hl.notification.create, hl.config, plain statements like a
+ * for-loop). Unlike dispatchLua(), the string is executed as-is rather than being
+ * wrapped in hl.dispatch(...), so it does NOT need to evaluate to a dispatcher
+ * table. Confirmed via the Hyprland wiki's "Using hyprctl" page:
+ * `hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "3" }))'` — i.e.
+ * `hyprctl dispatch X` is sugar for `hyprctl eval 'hl.dispatch(X)'`.
+ */
+export async function evalLua(expr: string): Promise<string> {
+  return runHyprctl(["eval", expr]);
+}
+
 // ---- Shared type shapes (subset of hyprctl -j output actually used) ----
 
 export interface HyprWindow {

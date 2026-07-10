@@ -25,8 +25,8 @@ import {
   denyWindowFromGroupExpr,
   moveCursorExpr,
   moveCursorToCornerExpr,
-  notifyFallbackExpr,
-  dismissNotificationsExpr,
+  createNotificationExpr,
+  dismissAllNotificationsExpr,
 } from "../dispatch-expressions.js";
 
 describe("toLuaValue / luaCall primitives", () => {
@@ -148,7 +148,7 @@ describe("window dispatch expressions", () => {
   });
 
   test("pinWindowExpr", () => {
-    assert.equal(pinWindowExpr(), "hl.dsp.pin()");
+    assert.equal(pinWindowExpr(), "hl.dsp.window.pin()");
   });
 });
 
@@ -246,15 +246,25 @@ describe("cursor dispatch expressions", () => {
   });
 });
 
-describe("notification dispatch expressions", () => {
-  test("notifyFallbackExpr", () => {
+describe("notification (not dispatchers — run via evalLua)", () => {
+  test("createNotificationExpr with icon", () => {
     assert.equal(
-      notifyFallbackExpr({ message: "hello", timeMs: 4000 }),
-      'hl.dsp.notify({ icon = -1, time = 4000, color = "rgb(ffffff)", message = "hello" })',
+      createNotificationExpr({ text: "hello", timeoutMs: 4000, icon: "ok" }),
+      'hl.notification.create({ text = "hello", timeout = 4000, icon = "ok" })',
     );
   });
 
-  test("dismissNotificationsExpr", () => {
-    assert.equal(dismissNotificationsExpr(), "hl.dsp.dismiss_notify()");
+  test("createNotificationExpr without icon omits the key", () => {
+    assert.equal(
+      createNotificationExpr({ text: "hello", timeoutMs: 4000 }),
+      'hl.notification.create({ text = "hello", timeout = 4000 })',
+    );
+  });
+
+  test("dismissAllNotificationsExpr is a raw for-loop statement, not a function call", () => {
+    assert.equal(
+      dismissAllNotificationsExpr(),
+      "for _, n in pairs(hl.notification.get()) do n:dismiss() end",
+    );
   });
 });

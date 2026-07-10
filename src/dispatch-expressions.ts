@@ -79,12 +79,15 @@ export function toggleFullscreenExpr(mode?: "full" | "maximize"): string {
 }
 
 /**
- * BEST-EFFORT: 'pin' is documented as an existing dispatcher, but is notably
- * absent from the hl.dsp.window.* list (close/kill/fullscreen/move/resize/tag)
- * seen elsewhere — guessing it's top-level like focus/submap/exec_cmd.
+ * BEST-EFFORT (revised): a bare hl.dsp.pin() was confirmed NOT to exist against a
+ * real Hyprland 0.55.4 session ("attempt to call a nil value (field 'pin')").
+ * hl.dsp.window.deny_from_group() worked despite being absent from DeepWiki's
+ * abbreviated hl.dsp.window list (close/kill/fullscreen/move/resize/tag) — so
+ * that list isn't exhaustive, and 'pin' is likely also under the window
+ * namespace by the same pattern. Still unconfirmed; verify before relying on it.
  */
 export function pinWindowExpr(): string {
-  return luaCall("hl.dsp.pin");
+  return luaCall("hl.dsp.window.pin");
 }
 
 // ---- workspaces ---- //
@@ -114,10 +117,7 @@ export function toggleSpecialWorkspaceExpr(name: string): string {
 
 // ---- monitors ---- //
 
-/**
- * BEST-EFFORT: no confirmed source for monitor focus's Lua path — guessing
- * hl.dsp.focus() (already confirmed for window focus) also accepts `monitor`.
- */
+/** CONFIRMED (real session, Hyprland 0.55.4): hl.dsp.focus({ monitor = ... }) */
 export function focusMonitorExpr(monitor: number | string): string {
   return luaCall("hl.dsp.focus", { monitor });
 }
@@ -144,12 +144,12 @@ export function groupCycleExpr(direction: "next" | "prev"): string {
   return luaCall(`hl.dsp.group.${direction}`);
 }
 
-/** BEST-EFFORT: hl.dsp.group.lock() path is confirmed to exist; argument shape (if any) is not. */
+/** CONFIRMED (real session, Hyprland 0.55.4): hl.dsp.group.lock(), no-arg toggle. */
 export function toggleGroupLockExpr(): string {
   return luaCall("hl.dsp.group.lock");
 }
 
-/** BEST-EFFORT: dispatcher's existence is documented; its Lua path is not confirmed. */
+/** CONFIRMED (real session, Hyprland 0.55.4): hl.dsp.window.deny_from_group(). */
 export function denyWindowFromGroupExpr(target?: string): string {
   return target
     ? luaCall("hl.dsp.window.deny_from_group", { window: selectorFor(target) })
@@ -174,20 +174,31 @@ export function moveCursorToCornerExpr(opts: { corner: number; target?: string }
 // ---- notifications ---- //
 
 /**
- * BEST-EFFORT: no confirmed source for the notify dispatcher's 0.55+ Lua path —
- * guessing hl.dsp.notify(), preserving the old dispatcher's argument meaning
- * (icon id, timeout ms, color, message).
+ * CONFIRMED shape, but NOT a dispatcher — hl.notification.create({ text, timeout,
+ * icon?, color?, font_size? }) is a plain hl.* function (confirmed via the wiki's
+ * "Expanding functionality" and "Using hyprctl" pages, including a REPL example
+ * returning a notification_handle). It must be run via evalLua(), NOT
+ * dispatchLua() — hl.dispatch() expects a dispatcher table and this isn't one; a
+ * real-session test confirmed there is no hl.dsp.notify at all.
  */
-export function notifyFallbackExpr(opts: { message: string; timeMs: number }): string {
-  return luaCall("hl.dsp.notify", {
-    icon: -1,
-    time: opts.timeMs,
-    color: "rgb(ffffff)",
-    message: opts.message,
+export function createNotificationExpr(opts: { text: string; timeoutMs: number; icon?: string }): string {
+  return luaCall("hl.notification.create", {
+    text: opts.text,
+    timeout: opts.timeoutMs,
+    icon: opts.icon,
   });
 }
 
-/** BEST-EFFORT: no confirmed source for this dispatcher's 0.55+ Lua path. */
-export function dismissNotificationsExpr(): string {
-  return luaCall("hl.dsp.dismiss_notify");
+/**
+ * HIGHLY SPECULATIVE — no documented "dismiss all" function was found anywhere.
+ * hl.notification.get() (confirmed to return a list of notification handles) is
+ * real; the `:dismiss()` method name on each handle is a guess by analogy with
+ * timer handles' `:set_enabled()`. This is a raw Lua statement (a for-loop, not a
+ * function call returning a dispatcher table), so it must run via evalLua(), NOT
+ * dispatchLua(), even if the method name turns out to be right. If it errors,
+ * the error text will very likely name the correct method — update this and its
+ * test together once known.
+ */
+export function dismissAllNotificationsExpr(): string {
+  return "for _, n in pairs(hl.notification.get()) do n:dismiss() end";
 }

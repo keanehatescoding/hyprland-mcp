@@ -58,12 +58,17 @@ isn't something you need to think about. It matters when:
   object) for the common case, or a full `raw_expression` string for dispatchers that
   take something other than a named-args table (e.g. `hl.dsp.exec_cmd('firefox')`
   takes a bare string, `hl.dsp.submap("reset")` takes a bare string).
-- A dispatch call errors unexpectedly — a few paths (`pin_window`, `focus_monitor`,
-  the notification dispatchers) are best-effort guesses flagged in their tool
-  descriptions because no source could confirm their exact Lua path at authoring
-  time. If one of those errors, don't assume the MCP server is broken — check
-  https://wiki.hypr.land/Configuring/Basics/Dispatchers/ (or the user's own Lua LSP
-  stubs) for the current signature and pass it via `raw_expression`.
+- A dispatch call errors unexpectedly. Real testing against Hyprland 0.55.4 already
+  found and fixed two wrong guesses: a bare `hl.dsp.pin()` and the entire notification
+  dispatcher approach both errored with `attempt to call a nil value`. Notifications
+  turned out not to be dispatchers at all — `hl.notification.create(...)` is a plain
+  function that must go through `evalLua()`/`hyprctl eval`, not `dispatchLua()`/
+  `hyprctl dispatch`. `pin_window` and `dismiss_notifications` are still unconfirmed;
+  if either (or anything else) errors, don't assume the MCP server is broken generally
+  — check https://wiki.hypr.land/Configuring/Basics/Dispatchers/,
+  https://wiki.hypr.land/Configuring/Advanced-and-Cool/Expanding-functionality/, or
+  the user's own Lua LSP stubs, and pass the fix via `raw_expression` (or `evalLua`
+  for non-dispatcher calls) until the code itself is updated.
 - `hyprctl keyword`/`getoption`/`reload`/`version` are unaffected by any of this —
   they're a separate hyprctl subcommand family, not "dispatch".
 

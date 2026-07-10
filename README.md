@@ -89,30 +89,38 @@ now parses `hyprctl dispatch <arg>` as a single Lua expression rather than the o
 on 0.55+; the equivalent is `hyprctl dispatch 'hl.dsp.workspace.change({workspace=3})'`.
 
 This project targets that new syntax throughout (`src/hyprctl.ts` has `luaCall()` /
-`dispatchLua()` helpers for building these expressions). Confidence varies by dispatcher:
+`dispatchLua()` / `evalLua()` helpers; `src/dispatch-expressions.ts` holds every
+generated expression as a pure, unit-tested function). Confidence tiers, now backed
+by real testing against Hyprland 0.55.4 (see `scripts/test-flagged-dispatchers*.sh`):
 
-- **Confirmed against the Hyprland wiki / a working example**: `hl.dsp.focus`,
-  `hl.dsp.window.{close,kill,move,resize,float,fullscreen,tag}`,
-  `hl.dsp.workspace.{change,rename,move_to_monitor,toggle_special}`,
-  `hl.dsp.group.{toggle,next,prev}`, `hl.dsp.cursor.{move,move_to_corner}`,
-  `hl.dsp.exec_cmd`, `hl.dsp.submap`, `hl.dsp.pass`, `hl.dsp.send_shortcut`.
-- **Best-effort guesses, flagged in code/tool descriptions** — verify before relying
-  on them: `pin_window`, `focus_monitor`, `toggle_group_lock` (the `hl.dsp.group.lock`
-  path is confirmed to exist, but its argument shape isn't — called with no args
-  here), `deny_window_from_group` (path itself is unconfirmed, only that the
-  dispatcher exists), and the notification dispatchers (`send_notification`'s
-  fallback, `dismiss_notifications`). None of these are in any wiki page or example
-  found as of this writing; if they error, use `hyprland_dispatch` with a
-  `raw_expression` you've checked against your own Lua LSP stubs (wiki: "Expanding
-  functionality" → LSP setup) or `hyprctl dispatch --help`.
+- **Confirmed against the wiki, a working example, or a real 0.55.4 session**:
+  `hl.dsp.focus` (including `{ monitor = ... }`), `hl.dsp.window.{close,kill,move,
+  resize,float,fullscreen,tag,deny_from_group}`, `hl.dsp.workspace.{change,rename,
+  move_to_monitor,toggle_special}`, `hl.dsp.group.{toggle,next,prev,lock}`,
+  `hl.dsp.cursor.{move,move_to_corner}`, `hl.dsp.exec_cmd`, `hl.dsp.submap`,
+  `hl.dsp.pass`, `hl.dsp.send_shortcut`, and `hl.notification.create({text, timeout,
+  icon?})` (not a dispatcher — run via `evalLua()`/`hyprctl eval`, confirmed via the
+  wiki's REPL example, not yet exercised through this project's own tool).
+- **Confirmed BROKEN against a real session, since fixed**: a bare `hl.dsp.pin()`
+  and `hl.dsp.notify(...)`/`hl.dsp.dismiss_notify()` all errored with
+  `attempt to call a nil value` on Hyprland 0.55.4. `pin_window` now tries
+  `hl.dsp.window.pin()` (unconfirmed but a much better-motivated guess, since
+  `deny_from_group` also worked despite being absent from the same "exhaustive"
+  wiki list). The notification tools were restructured entirely — see above.
+- **Still best-effort, unconfirmed**: `pin_window`'s new path (untested), and
+  `dismiss_notifications` (`for _, n in pairs(hl.notification.get()) do n:dismiss()
+  end` — `hl.notification.get()` is confirmed to return handles, `:dismiss()` is a
+  guessed method name with zero supporting source). If either errors, use
+  `hyprland_dispatch`/a raw `evalLua` call you've checked against your own Lua LSP
+  stubs (wiki: "Expanding functionality" → LSP setup) or `hyprctl dispatch --help`.
 - `hyprctl keyword`/`getoption`/`reload`/`version` (used by `config.ts`) are a
-  separate, non-dispatch subcommand family and should be unaffected by this change —
-  they weren't reported broken anywhere in the sources checked.
+  separate, non-dispatch subcommand family and remain unaffected — confirmed by
+  omission, nothing in this family has errored in real testing so far.
 
-This is a fast-moving part of Hyprland (0.55.0 → 0.55.3 shipped within about two
-months of each other, with dispatcher-behavior bugfixes in each). If something that
-used to work here breaks after a Hyprland update, check the dispatcher's current
-signature on the wiki before assuming the MCP server itself regressed.
+This is a fast-moving part of Hyprland (0.55.0 → 0.55.4 shipped within about a
+month, with dispatcher-behavior bugfixes in each). If something that used to work
+here breaks after a Hyprland update, check the dispatcher's current signature on
+the wiki before assuming the MCP server itself regressed.
 
 ## Testing
 
