@@ -77,4 +77,20 @@ export function registerWorkspaceTools(server: McpServer) {
       return text(out || `Renamed workspace ${workspace} to ${name}`);
     },
   );
+
+  server.tool(
+    "toggle_special_workspace",
+    "Show or hide a named special workspace (Hyprland's version of a scratchpad) on the current " +
+      "monitor. To put a window INTO a special workspace in the first place, use " +
+      "move_window_to_workspace with workspace set to 'special:<name>' — this tool only toggles " +
+      "its visibility. Confirmed: hl.dsp.workspace.toggle_special('name') (bare string arg, not a table).",
+    {
+      name: z.string().describe("Special workspace name, without the 'special:' prefix, e.g. 'magic'"),
+    },
+    async ({ name }) => {
+      const expr = luaCall("hl.dsp.workspace.toggle_special", name);
+      const out = await dispatchLua(expr);
+      return text(out || `Toggled special workspace '${name}'`);
+    },
+  );
 }

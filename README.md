@@ -24,6 +24,10 @@ it only works when launched **inside your Hyprland session** (or with
 - **App launcher**: `toggle_launcher`, `prewarm_launcher_daemon` (controls
   [hyprlauncher](https://github.com/hyprwm/hyprlauncher), Hyprland's first-party
   app picker — a self-toggling daemon, not a hyprctl dispatcher)
+- **Tags**: `tag_window`
+- **Groups (tabbed containers)**: `toggle_group`, `group_cycle`, `toggle_group_lock`,
+  `deny_window_from_group`
+- **Cursor**: `move_cursor`, `move_cursor_to_corner`
 - **Escape hatches**: `hyprland_dispatch` (any `hyprctl dispatch <dispatcher>`),
   `hyprctl_raw` (any raw `hyprctl` subcommand)
 
@@ -90,14 +94,17 @@ This project targets that new syntax throughout (`src/hyprctl.ts` has `luaCall()
 - **Confirmed against the Hyprland wiki / a working example**: `hl.dsp.focus`,
   `hl.dsp.window.{close,kill,move,resize,float,fullscreen,tag}`,
   `hl.dsp.workspace.{change,rename,move_to_monitor,toggle_special}`,
-  `hl.dsp.group.{toggle,next,prev,lock}`, `hl.dsp.cursor.{move,move_to_corner}`,
+  `hl.dsp.group.{toggle,next,prev}`, `hl.dsp.cursor.{move,move_to_corner}`,
   `hl.dsp.exec_cmd`, `hl.dsp.submap`, `hl.dsp.pass`, `hl.dsp.send_shortcut`.
 - **Best-effort guesses, flagged in code/tool descriptions** — verify before relying
-  on them: `pin_window`, `focus_monitor`, and the notification dispatchers
-  (`send_notification`'s fallback, `dismiss_notifications`). These paths aren't in
-  any wiki page or example I could find as of this writing; if they error, use
-  `hyprland_dispatch` with a `raw_expression` you've checked against your own Lua LSP
-  stubs (wiki: "Expanding functionality" → LSP setup) or `hyprctl dispatch --help`.
+  on them: `pin_window`, `focus_monitor`, `toggle_group_lock` (the `hl.dsp.group.lock`
+  path is confirmed to exist, but its argument shape isn't — called with no args
+  here), `deny_window_from_group` (path itself is unconfirmed, only that the
+  dispatcher exists), and the notification dispatchers (`send_notification`'s
+  fallback, `dismiss_notifications`). None of these are in any wiki page or example
+  found as of this writing; if they error, use `hyprland_dispatch` with a
+  `raw_expression` you've checked against your own Lua LSP stubs (wiki: "Expanding
+  functionality" → LSP setup) or `hyprctl dispatch --help`.
 - `hyprctl keyword`/`getoption`/`reload`/`version` (used by `config.ts`) are a
   separate, non-dispatch subcommand family and should be unaffected by this change —
   they weren't reported broken anywhere in the sources checked.

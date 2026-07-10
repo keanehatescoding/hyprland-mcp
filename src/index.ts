@@ -11,6 +11,9 @@ import { registerKeybindTools } from "./tools/keybinds.js";
 import { registerNotifyTools } from "./tools/notify.js";
 import { registerScreenshotTools } from "./tools/screenshot.js";
 import { registerLauncherTools } from "./tools/launcher.js";
+import { registerTagTools } from "./tools/tags.js";
+import { registerGroupTools } from "./tools/groups.js";
+import { registerCursorTools } from "./tools/cursor.js";
 
 const server = new McpServer({
   name: "hyprland-mcp",
@@ -26,6 +29,9 @@ registerKeybindTools(server);
 registerNotifyTools(server);
 registerScreenshotTools(server);
 registerLauncherTools(server);
+registerTagTools(server);
+registerGroupTools(server);
+registerCursorTools(server);
 
 async function main() {
   const transport = new StdioServerTransport();

@@ -27,13 +27,16 @@ rather than trying alternate arguments.
 | Category | Tools | Use for |
 |---|---|---|
 | Windows | `list_windows`, `get_active_window`, `focus_window`, `close_window`, `kill_active_window`, `move_window_to_workspace`, `move_active_window`, `resize_active_window`, `toggle_floating`, `toggle_fullscreen`, `pin_window` | Per-window inspection/manipulation |
-| Workspaces | `list_workspaces`, `get_active_workspace`, `switch_workspace`, `move_workspace_to_monitor`, `rename_workspace` | Workspace-level ops |
+| Workspaces | `list_workspaces`, `get_active_workspace`, `switch_workspace`, `move_workspace_to_monitor`, `rename_workspace`, `toggle_special_workspace` | Workspace-level ops incl. scratchpad |
 | Monitors | `list_monitors`, `focus_monitor`, `set_monitor_config` | Output layout/resolution/scale |
 | Config | `get_config_option`, `set_config_option`, `reload_hyprland_config`, `get_hyprland_version` | Reading/tweaking hyprland.conf values live |
 | Keybinds | `list_keybinds` | Auditing/searching existing binds |
 | Notifications | `send_notification`, `dismiss_notifications` | Desktop notifications or on-screen overlay |
 | Screenshots | `take_screenshot`, `take_region_screenshot`, `screenshot_active_window` | Visual capture |
 | Launcher | `toggle_launcher`, `prewarm_launcher_daemon` | hyprlauncher, the first-party app picker |
+| Tags | `tag_window` | Static window tags for use in window rules |
+| Groups | `toggle_group`, `group_cycle`, `toggle_group_lock`, `deny_window_from_group` | Tabbed-container windows |
+| Cursor | `move_cursor`, `move_cursor_to_corner` | Programmatic cursor placement |
 | Escape hatches | `hyprland_dispatch`, `hyprctl_raw` | Anything not covered above |
 
 **Always look up state before mutating it.** Call `list_windows` / `list_workspaces` /
@@ -151,3 +154,9 @@ failing silently.
 - "What are my gaps set to?" → `get_config_option` with `"general:gaps_in"`
 - "Cycle to the next window" → `hyprland_dispatch` with `dispatcher: "cyclenext"`
 - "Open the app launcher" / "let me search for an app" → `toggle_launcher`
+- "Show/hide my scratchpad terminal" → `toggle_special_workspace` with `name`
+  matching what you moved the window into via `move_window_to_workspace`
+  (`workspace: "special:<name>"`)
+- "Tab these windows together" → `toggle_group` (call it on the window you want to
+  become the group anchor, then move other windows into the same tiled slot)
+- "Tag this as a 'code' window" → `tag_window` with `tag: "+code"`
