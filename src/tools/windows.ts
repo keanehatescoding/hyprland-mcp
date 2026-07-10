@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { dispatch, runHyprctl, runHyprctlJson, HyprWindow } from "../hyprctl.js";
+import { dispatchLua, luaCall, runHyprctlJson, HyprWindow } from "../hyprctl.js";
 
 function text(payload: unknown) {
   return {
@@ -11,6 +11,10 @@ function text(payload: unknown) {
       },
     ],
   };
+}
+
+function selectorFor(target: string): string {
+  return target.startsWith("0x") ? `address:${target}` : target;
 }
 
 export function registerWindowTools(server: McpServer) {
@@ -36,7 +40,7 @@ export function registerWindowTools(server: McpServer) {
 
   server.tool(
     "focus_window",
-    "Focus a window by its unique address (from list_windows) or by class/title regex via hyprctl's window selector syntax (e.g. 'class:^(firefox)$').",
+    "Focus a window by its unique address (from list_windows) or by class/title regex selector (e.g. 'class:^(firefox)$').",
     {
       target: z
         .string()
@@ -45,8 +49,9 @@ export function registerWindowTools(server: McpServer) {
         ),
     },
     async ({ target }) => {
-      const selector = target.startsWith("0x") ? `address:${target}` : target;
-      const out = await dispatch("focuswindow", selector);
+      // Uses hl.dsp.focus({ window = ... }) — the 0.55+ Lua dispatch form of focuswindow.
+      const expr = luaCall("hl.dsp.focus", { window: selectorFor(target) });
+      const out = await dispatchLua(expr);
       return text(out || `Focused window matching ${target}`);
     },
   );
@@ -58,18 +63,18 @@ export function registerWindowTools(server: McpServer) {
       target: z.string().describe("Window address ('0x...') or selector ('class:^(kitty)$')"),
     },
     async ({ target }) => {
-      const selector = target.startsWith("0x") ? `address:${target}` : target;
-      const out = await dispatch("closewindow", selector);
+      const expr = luaCall("hl.dsp.window.close", { window: selectorFor(target) });
+      const out = await dispatchLua(expr);
       return text(out || `Closed window matching ${target}`);
     },
   );
 
   server.tool(
     "kill_active_window",
-    "Force-kill the currently focused window (hyprctl kill equivalent to the killactive dispatcher).",
+    "Force-kill the currently focused window (hl.dsp.window.kill(), the 0.55+ equivalent of the old killactive dispatcher).",
     {},
     async () => {
-      const out = await dispatch("killactive");
+      const out = await dispatchLua(luaCall("hl.dsp.window.kill"));
       return text(out || "Killed active window");
     },
   );
@@ -90,15 +95,17 @@ export function registerWindowTools(server: McpServer) {
       silent: z
         .boolean()
         .optional()
-        .describe("If true, move without switching focus to that workspace (movetoworkspacesilent)"),
+        .describe("If true, move without switching focus to that workspace"),
     },
     async ({ workspace, target, silent }) => {
-      const dispatcher = silent ? "movetoworkspacesilent" : "movetoworkspace";
-      const selector = target
-        ? (target.startsWith("0x") ? `address:${target}` : target)
-        : undefined;
-      const arg = selector ? `${workspace},${selector}` : `${workspace}`;
-      const out = await dispatch(dispatcher, arg);
+      // hl.dsp.window.move() is overloaded: {workspace=...} moves to a workspace,
+      // {x=, y=, relative=} moves position (see move_active_window below).
+      const expr = luaCall("hl.dsp.window.move", {
+        workspace,
+        window: target ? selectorFor(target) : undefined,
+        silent,
+      });
+      const out = await dispatchLua(expr);
       return text(out || `Moved window to workspace ${workspace}`);
     },
   );
@@ -112,10 +119,8 @@ export function registerWindowTools(server: McpServer) {
       y: z.number(),
     },
     async ({ mode, x, y }) => {
-      const dispatcher = mode === "exact" ? "moveactive" : "moveactive";
-      // Hyprland's moveactive takes "exact x y" for absolute, "x y" for relative
-      const arg = mode === "exact" ? `exact ${x} ${y}` : `${x} ${y}`;
-      const out = await dispatch(dispatcher, arg);
+      const expr = luaCall("hl.dsp.window.move", { x, y, relative: mode === "relative" });
+      const out = await dispatchLua(expr);
       return text(out || `Moved active window (${mode}) by/to ${x},${y}`);
     },
   );
@@ -129,8 +134,12 @@ export function registerWindowTools(server: McpServer) {
       height: z.number(),
     },
     async ({ mode, width, height }) => {
-      const arg = mode === "exact" ? `exact ${width} ${height}` : `${width} ${height}`;
-      const out = await dispatch("resizeactive", arg);
+      const expr = luaCall("hl.dsp.window.resize", {
+        x: width,
+        y: height,
+        relative: mode === "relative",
+      });
+      const out = await dispatchLua(expr);
       return text(out || `Resized active window (${mode}) to ${width}x${height}`);
     },
   );
@@ -142,10 +151,11 @@ export function registerWindowTools(server: McpServer) {
       target: z.string().optional().describe("Window address or selector; omit for active window"),
     },
     async ({ target }) => {
-      const selector = target
-        ? (target.startsWith("0x") ? `address:${target}` : target)
-        : "";
-      const out = await dispatch("togglefloating", selector);
+      const expr = luaCall("hl.dsp.window.float", {
+        action: "toggle",
+        window: target ? selectorFor(target) : undefined,
+      });
+      const out = await dispatchLua(expr);
       return text(out || "Toggled floating");
     },
   );
@@ -160,18 +170,24 @@ export function registerWindowTools(server: McpServer) {
         .describe("full = real fullscreen (0), maximize = maximized-but-windowed (1). Defaults to full."),
     },
     async ({ mode }) => {
-      const arg = mode === "maximize" ? "1" : "0";
-      const out = await dispatch("fullscreen", arg);
+      // Confirmed working as of 0.55.0: hyprctl dispatch 'hl.dsp.window.fullscreen({mode=1})'
+      const expr = luaCall("hl.dsp.window.fullscreen", { mode: mode === "maximize" ? 1 : 0 });
+      const out = await dispatchLua(expr);
       return text(out || "Toggled fullscreen");
     },
   );
 
   server.tool(
     "pin_window",
-    "Pin the active (usually floating) window so it stays visible across all workspaces.",
+    "Pin the active (usually floating) window so it stays visible across all workspaces. " +
+      "NOTE: the exact 0.55+ Lua path for 'pin' isn't documented anywhere I could confirm at " +
+      "authoring time (it's notably absent from the hl.dsp.window.* list that close/kill/fullscreen/" +
+      "move/resize/tag belong to) — this guesses it's a top-level dispatcher like focus/submap/exec_cmd. " +
+      "If this errors, use hyprland_dispatch with a raw_expression you've verified against your own " +
+      "Lua LSP stubs (see README) instead.",
     {},
     async () => {
-      const out = await dispatch("pin");
+      const out = await dispatchLua(luaCall("hl.dsp.pin"));
       return text(out || "Toggled pin on active window");
     },
   );

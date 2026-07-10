@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { dispatch } from "../hyprctl.js";
+import { dispatchLua, luaCall } from "../hyprctl.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -21,8 +21,11 @@ export function registerNotifyTools(server: McpServer) {
   server.tool(
     "send_notification",
     "Send a desktop notification via notify-send (requires a notification daemon like mako or " +
-      "dunst running). Falls back to Hyprland's built-in on-screen notify dispatcher if notify-send " +
-      "is unavailable.",
+      "dunst running). Falls back to Hyprland's own on-screen notify dispatcher if notify-send is " +
+      "unavailable — NOTE: the fallback's exact 0.55+ Lua path (guessed here as " +
+      "hl.dsp.notify({icon=, time=, color=, message=}), preserving the old dispatcher's argument " +
+      "meaning) isn't confirmable from available docs at authoring time. If the fallback errors, " +
+      "installing a real notification daemon is the more reliable fix anyway.",
     {
       title: z.string(),
       body: z.string().optional(),
@@ -43,12 +46,17 @@ export function registerNotifyTools(server: McpServer) {
         await execFileAsync("notify-send", args);
         return text(`Notification sent: ${title}`);
       } catch (err: any) {
-        // Fallback: Hyprland's own on-screen notify dispatcher.
-        // notifyDispatcher arg format: "<icon-id> <time-ms> <color> <message>"
         const fallbackMsg = body ? `${title}: ${body}` : title;
-        await dispatch("notify", `-1 ${timeout_ms ?? 5000} rgb(ffffff) ${fallbackMsg}`);
+        const expr = luaCall("hl.dsp.notify", {
+          icon: -1,
+          time: timeout_ms ?? 5000,
+          color: "rgb(ffffff)",
+          message: fallbackMsg,
+        });
+        await dispatchLua(expr);
         return text(
-          `notify-send unavailable (${err.message}); used Hyprland's built-in notify overlay instead.`,
+          `notify-send unavailable (${err.message}); attempted Hyprland's built-in notify overlay ` +
+            `as a fallback (best-effort Lua path — verify it actually fired on screen).`,
         );
       }
     },
@@ -56,10 +64,12 @@ export function registerNotifyTools(server: McpServer) {
 
   server.tool(
     "dismiss_notifications",
-    "Dismiss all currently visible Hyprland built-in on-screen notifications.",
+    "Dismiss all currently visible Hyprland built-in on-screen notifications. NOTE: the 0.55+ " +
+      "Lua path is guessed as hl.dsp.dismiss_notify() (unconfirmed at authoring time) — if this " +
+      "errors, use hyprland_dispatch with a raw_expression verified against your Lua LSP stubs.",
     {},
     async () => {
-      await dispatch("dismissnotify");
+      await dispatchLua(luaCall("hl.dsp.dismiss_notify"));
       return text("Dismissed on-screen notifications");
     },
   );

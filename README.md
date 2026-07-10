@@ -72,6 +72,37 @@ inside a sandbox), export it first, e.g.:
 export HYPRLAND_INSTANCE_SIGNATURE=$(ls /tmp/hypr | head -n1)
 ```
 
+## Hyprland 0.55+ Lua dispatch syntax
+
+Hyprland 0.55 replaced hyprlang config with a Lua-based one, and — independent of
+which config format *your own* hyprland.conf/.lua uses — the running 0.55+ binary
+now parses `hyprctl dispatch <arg>` as a single Lua expression rather than the old
+`<dispatcher-name> <args>` positional form. `hyprctl dispatch workspace 3` will error
+on 0.55+; the equivalent is `hyprctl dispatch 'hl.dsp.workspace.change({workspace=3})'`.
+
+This project targets that new syntax throughout (`src/hyprctl.ts` has `luaCall()` /
+`dispatchLua()` helpers for building these expressions). Confidence varies by dispatcher:
+
+- **Confirmed against the Hyprland wiki / a working example**: `hl.dsp.focus`,
+  `hl.dsp.window.{close,kill,move,resize,float,fullscreen,tag}`,
+  `hl.dsp.workspace.{change,rename,move_to_monitor,toggle_special}`,
+  `hl.dsp.group.{toggle,next,prev,lock}`, `hl.dsp.cursor.{move,move_to_corner}`,
+  `hl.dsp.exec_cmd`, `hl.dsp.submap`, `hl.dsp.pass`, `hl.dsp.send_shortcut`.
+- **Best-effort guesses, flagged in code/tool descriptions** — verify before relying
+  on them: `pin_window`, `focus_monitor`, and the notification dispatchers
+  (`send_notification`'s fallback, `dismiss_notifications`). These paths aren't in
+  any wiki page or example I could find as of this writing; if they error, use
+  `hyprland_dispatch` with a `raw_expression` you've checked against your own Lua LSP
+  stubs (wiki: "Expanding functionality" → LSP setup) or `hyprctl dispatch --help`.
+- `hyprctl keyword`/`getoption`/`reload`/`version` (used by `config.ts`) are a
+  separate, non-dispatch subcommand family and should be unaffected by this change —
+  they weren't reported broken anywhere in the sources checked.
+
+This is a fast-moving part of Hyprland (0.55.0 → 0.55.3 shipped within about two
+months of each other, with dispatcher-behavior bugfixes in each). If something that
+used to work here breaks after a Hyprland update, check the dispatcher's current
+signature on the wiki before assuming the MCP server itself regressed.
+
 ## Design notes
 
 - All `hyprctl` calls go through `execFile` (never a shell), so arguments can never be

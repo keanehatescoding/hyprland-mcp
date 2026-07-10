@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { dispatch, runHyprctlJson, HyprWorkspace } from "../hyprctl.js";
+import { dispatchLua, luaCall, runHyprctlJson, HyprWorkspace } from "../hyprctl.js";
 
 function text(payload: unknown) {
   return {
@@ -43,7 +43,9 @@ export function registerWorkspaceTools(server: McpServer) {
         .describe("Workspace id, name, or relative selector like 'e+1' / 'e-1'"),
     },
     async ({ workspace }) => {
-      const out = await dispatch("workspace", `${workspace}`);
+      // hl.dsp.workspace.change() is the 0.55+ Lua form of the old `workspace` dispatcher.
+      const expr = luaCall("hl.dsp.workspace.change", { workspace });
+      const out = await dispatchLua(expr);
       return text(out || `Switched to workspace ${workspace}`);
     },
   );
@@ -56,7 +58,8 @@ export function registerWorkspaceTools(server: McpServer) {
       monitor: z.union([z.number(), z.string()]).describe("Monitor id or name"),
     },
     async ({ workspace, monitor }) => {
-      const out = await dispatch("moveworkspacetomonitor", `${workspace} ${monitor}`);
+      const expr = luaCall("hl.dsp.workspace.move_to_monitor", { workspace, monitor });
+      const out = await dispatchLua(expr);
       return text(out || `Moved workspace ${workspace} to monitor ${monitor}`);
     },
   );
@@ -69,7 +72,8 @@ export function registerWorkspaceTools(server: McpServer) {
       name: z.string(),
     },
     async ({ workspace, name }) => {
-      const out = await dispatch("renameworkspace", `${workspace} ${name}`);
+      const expr = luaCall("hl.dsp.workspace.rename", { workspace, name });
+      const out = await dispatchLua(expr);
       return text(out || `Renamed workspace ${workspace} to ${name}`);
     },
   );

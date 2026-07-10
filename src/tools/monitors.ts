@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { dispatch, runHyprctl, runHyprctlJson, HyprMonitor } from "../hyprctl.js";
+import { dispatchLua, luaCall, runHyprctl, runHyprctlJson, HyprMonitor } from "../hyprctl.js";
 
 function text(payload: unknown) {
   return {
@@ -26,19 +26,29 @@ export function registerMonitorTools(server: McpServer) {
 
   server.tool(
     "focus_monitor",
-    "Move focus to a given monitor.",
+    "Move focus to a given monitor. NOTE: unlike window/workspace dispatchers, the 0.55+ Lua path " +
+      "for monitor focus isn't documented anywhere confirmable at authoring time — this guesses " +
+      "hl.dsp.focus() (the same top-level dispatcher used for window focus) also accepts a " +
+      "`monitor` key. If it errors, use hyprland_dispatch with a raw_expression checked against " +
+      "your Lua LSP stubs instead.",
     {
       monitor: z.union([z.number(), z.string()]).describe("Monitor id, name, or direction (l/r/u/d)"),
     },
     async ({ monitor }) => {
-      const out = await dispatch("focusmonitor", `${monitor}`);
+      const expr = luaCall("hl.dsp.focus", { monitor });
+      const out = await dispatchLua(expr);
       return text(out || `Focused monitor ${monitor}`);
     },
   );
 
   server.tool(
     "set_monitor_config",
-    "Apply a monitor config via 'hyprctl keyword monitor', same syntax as hyprland.conf's monitor= line. Useful for resolution/position/scale/enable-disable changes.",
+    "Apply a monitor config via 'hyprctl keyword monitor', same syntax as hyprland.conf's monitor= line. " +
+      "Useful for resolution/position/scale/enable-disable changes. Unlike 'dispatch', 'keyword' is a " +
+      "config-value setter rather than the dispatch mechanism that changed in 0.55, so this should be " +
+      "unaffected — but if it errors on your version, the Lua equivalent is likely " +
+      "hl.config({ monitor = { ... } }), which isn't reachable through this tool's escape hatches " +
+      "(they're dispatch-only) and would need a small code change.",
     {
       config: z
         .string()

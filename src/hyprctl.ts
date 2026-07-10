@@ -59,10 +59,53 @@ export async function runHyprctlJson<T = unknown>(args: string[]): Promise<T> {
   }
 }
 
-/** Convenience for `hyprctl dispatch <dispatcher> [args]`. */
-export async function dispatch(dispatcher: string, args: string = ""): Promise<string> {
+/**
+ * Convenience for the OLD (pre-0.55) `hyprctl dispatch <dispatcher> [args]` form.
+ * Kept only for reference/fallback; as of Hyprland 0.55 the running binary parses
+ * the dispatch argument as a Lua expression regardless of whether your own
+ * hyprland.conf/.lua uses hyprlang or Lua, so prefer dispatchLua()/luaCall() below.
+ */
+export async function dispatchLegacy(dispatcher: string, args: string = ""): Promise<string> {
   const parts = args.length > 0 ? [dispatcher, args] : [dispatcher];
   return runHyprctl(["dispatch", ...parts]);
+}
+
+/**
+ * Serialize a JS value into a Lua literal: strings, numbers, booleans, arrays -> Lua
+ * arrays, and plain objects -> Lua tables with bare (unquoted) identifier keys.
+ * `undefined` entries in objects are dropped rather than serialized.
+ */
+export function toLuaValue(value: unknown): string {
+  if (value === undefined || value === null) return "nil";
+  if (typeof value === "string") return JSON.stringify(value); // Lua accepts "..." escapes like JSON's
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (Array.isArray(value)) return `{ ${value.map(toLuaValue).join(", ")} }`;
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).filter(
+      ([, v]) => v !== undefined,
+    );
+    return `{ ${entries.map(([k, v]) => `${k} = ${toLuaValue(v)}`).join(", ")} }`;
+  }
+  throw new HyprctlError(`Cannot serialize value to Lua: ${String(value)}`, []);
+}
+
+/**
+ * Build a Lua dispatcher call expression, e.g. luaCall("hl.dsp.window.move", { workspace: 3 })
+ * -> 'hl.dsp.window.move({ workspace = 3 })'
+ */
+export function luaCall(path: string, arg?: unknown): string {
+  if (arg === undefined) return `${path}()`;
+  return `${path}(${toLuaValue(arg)})`;
+}
+
+/**
+ * Run a dispatcher via Hyprland 0.55+'s Lua dispatch mechanism:
+ * `hyprctl dispatch '<lua expression>'`. The expression must evaluate to a
+ * dispatcher table, i.e. something built from hl.dsp.* — see luaCall().
+ */
+export async function dispatchLua(expr: string): Promise<string> {
+  return runHyprctl(["dispatch", expr]);
 }
 
 // ---- Shared type shapes (subset of hyprctl -j output actually used) ----
