@@ -28,6 +28,9 @@ it only works when launched **inside your Hyprland session** (or with
 - **Groups (tabbed containers)**: `toggle_group`, `group_cycle`, `toggle_group_lock`,
   `deny_window_from_group`
 - **Cursor**: `move_cursor`, `move_cursor_to_corner`
+- **hyprsunset (blue light filter)**: `set_sunset_temperature`, `disable_sunset_filter`,
+  `set_sunset_gamma`, `reset_sunset`, `get_sunset_profile`
+- **hyprpaper (wallpaper)**: `set_wallpaper`, `list_active_wallpapers`
 - **Escape hatches**: `hyprland_dispatch` (any `hyprctl dispatch <dispatcher>`),
   `hyprctl_raw` (any raw `hyprctl` subcommand)
 
@@ -37,7 +40,10 @@ it only works when launched **inside your Hyprland session** (or with
 - Hyprland (obviously) with `hyprctl` on `PATH`
 - Optional: `grim` + `slurp` for screenshots, `notify-send` (mako/dunst/similar) for
   notifications, [`hyprlauncher`](https://github.com/hyprwm/hyprlauncher) for the app
-  launcher tools — these tools degrade gracefully or error clearly if missing
+  launcher tools, [`hyprsunset`](https://github.com/hyprwm/hyprsunset) for blue-light
+  filter tools, [`hyprpaper`](https://github.com/hyprwm/hyprpaper) (with `ipc = true`,
+  the default, in `hyprpaper.conf`) for wallpaper tools — these tools degrade
+  gracefully or error clearly if missing
 
 ## Build
 
@@ -95,24 +101,28 @@ by real testing against Hyprland 0.55.4 (see `scripts/test-flagged-dispatchers*.
 
 - **Confirmed against the wiki, a working example, or a real 0.55.4 session**:
   `hl.dsp.focus` (including `{ monitor = ... }`), `hl.dsp.window.{close,kill,move,
-  resize,float,fullscreen,tag,deny_from_group}`, `hl.dsp.workspace.{change,rename,
-  move_to_monitor,toggle_special}`, `hl.dsp.group.{toggle,next,prev,lock}`,
+  resize,float,fullscreen,tag,deny_from_group,pin}`, `hl.dsp.workspace.{change,
+  rename,move_to_monitor,toggle_special}`, `hl.dsp.group.{toggle,next,prev,lock}`,
   `hl.dsp.cursor.{move,move_to_corner}`, `hl.dsp.exec_cmd`, `hl.dsp.submap`,
-  `hl.dsp.pass`, `hl.dsp.send_shortcut`, and `hl.notification.create({text, timeout,
-  icon?})` (not a dispatcher — run via `evalLua()`/`hyprctl eval`, confirmed via the
-  wiki's REPL example, not yet exercised through this project's own tool).
+  `hl.dsp.pass`, `hl.dsp.send_shortcut`.
+  `window.pin()` specifically: confirmed by a *semantic* rejection ("Window does not
+  qualify to be pinned" — Hyprland's own pin logic rejecting a non-floating window)
+  rather than the "attempt to call a nil value" error a wrong path produces, which
+  is what distinguishes "right path, wrong preconditions" from "guessed wrong".
 - **Confirmed BROKEN against a real session, since fixed**: a bare `hl.dsp.pin()`
   and `hl.dsp.notify(...)`/`hl.dsp.dismiss_notify()` all errored with
-  `attempt to call a nil value` on Hyprland 0.55.4. `pin_window` now tries
-  `hl.dsp.window.pin()` (unconfirmed but a much better-motivated guess, since
-  `deny_from_group` also worked despite being absent from the same "exhaustive"
-  wiki list). The notification tools were restructured entirely — see above.
-- **Still best-effort, unconfirmed**: `pin_window`'s new path (untested), and
-  `dismiss_notifications` (`for _, n in pairs(hl.notification.get()) do n:dismiss()
-  end` — `hl.notification.get()` is confirmed to return handles, `:dismiss()` is a
-  guessed method name with zero supporting source). If either errors, use
-  `hyprland_dispatch`/a raw `evalLua` call you've checked against your own Lua LSP
-  stubs (wiki: "Expanding functionality" → LSP setup) or `hyprctl dispatch --help`.
+  `attempt to call a nil value` on Hyprland 0.55.4.
+- **Confirmed non-functional in practice (not an error, but does nothing visible)**:
+  `hl.notification.create({text, timeout, icon?})` — the call itself is real, is
+  documented on the wiki, and returns `ok` from `hyprctl eval` with no error, but a
+  real-session test confirmed it produces no on-screen notification at all, most
+  likely because 0.55.4 is recent enough that the rendering side isn't fully wired
+  up yet. `send_notification`'s fallback and `dismiss_notifications` are both kept
+  in the codebase (rather than removed) since the call shapes are correct and may
+  simply start working on a future Hyprland release, but both tool descriptions now
+  say plainly not to expect a visible effect. If notify-send isn't installed,
+  effectively no notification tooling works here right now — install a real
+  notification daemon (mako/dunst) instead of relying on the fallback.
 - `hyprctl keyword`/`getoption`/`reload`/`version` (used by `config.ts`) are a
   separate, non-dispatch subcommand family and remain unaffected — confirmed by
   omission, nothing in this family has errored in real testing so far.
@@ -121,6 +131,11 @@ This is a fast-moving part of Hyprland (0.55.0 → 0.55.4 shipped within about a
 month, with dispatcher-behavior bugfixes in each). If something that used to work
 here breaks after a Hyprland update, check the dispatcher's current signature on
 the wiki before assuming the MCP server itself regressed.
+
+**Real-session testing status (Hyprland 0.55.4, as of this writing):** every
+dispatch-based tool except the notification pair is now confirmed correct.
+Notifications are the one area where "the code is right" and "the feature works"
+diverge — see above.
 
 ## Testing
 
@@ -149,6 +164,11 @@ conditionally rather than relying on `luaCall`'s undefined-key filtering to save
 
 ## Design notes
 
+- `hyprsunset` and `hyprpaper` are controlled through their own `hyprctl <name> <args>`
+  subcommand families (`hyprctl hyprsunset ...`, `hyprctl hyprpaper ...`) — like
+  `keyword`/`getoption`, these are untouched by the 0.55 Lua dispatch rewrite, so
+  `src/tools/hyprsunset.ts` and `hyprpaper.ts` call `runHyprctl()` directly with no
+  Lua expression involved.
 - All `hyprctl` calls go through `execFile` (never a shell), so arguments can never be
   used for shell injection.
 - Read commands (`list_*`, `get_*`) always go through `hyprctl -j` and get parsed as

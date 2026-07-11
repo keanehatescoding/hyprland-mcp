@@ -22,9 +22,12 @@ export function registerNotifyTools(server: McpServer) {
   server.tool(
     "send_notification",
     "Send a desktop notification via notify-send (requires a notification daemon like mako or " +
-      "dunst running). Falls back to Hyprland's own built-in notification system " +
-      "(hl.notification.create — confirmed shape, run via `hyprctl eval` since it's a plain " +
-      "function, not a dispatcher) if notify-send is unavailable.",
+      "dunst running). If notify-send is unavailable, falls back to Hyprland's built-in " +
+      "hl.notification.create — but a real-session test confirmed this fallback produces NO " +
+      "VISIBLE notification even though the underlying call succeeds without error (likely a " +
+      "Hyprland 0.55.4 rendering gap, not a bug in this call). Practically: if notify-send isn't " +
+      "installed, treat this tool as non-functional and tell the user to install a real " +
+      "notification daemon rather than assuming the fallback message means something appeared.",
     {
       title: z.string(),
       body: z.string().optional(),
@@ -48,7 +51,10 @@ export function registerNotifyTools(server: McpServer) {
         const fullText = body ? `${title}: ${body}` : title;
         await evalLua(createNotificationExpr({ text: fullText, timeoutMs: timeout_ms ?? 5000, icon }));
         return text(
-          `notify-send unavailable (${err.message}); used Hyprland's built-in notification system instead.`,
+          `notify-send unavailable (${err.message}); attempted Hyprland's built-in notification ` +
+            `system as a fallback, but this was confirmed to produce no visible on-screen effect on ` +
+            `a real Hyprland 0.55.4 session — the notification almost certainly did NOT appear. ` +
+            `Install notify-send + mako/dunst for working notifications.`,
         );
       }
     },
@@ -56,15 +62,21 @@ export function registerNotifyTools(server: McpServer) {
 
   server.tool(
     "dismiss_notifications",
-    "Dismiss all currently visible Hyprland built-in on-screen notifications. HIGHLY SPECULATIVE: " +
-      "no documented 'dismiss all' function was found anywhere. hl.notification.get() (confirmed " +
-      "to return a list of notification handles) exists; calling :dismiss() on each is a guess by " +
-      "analogy with other Hyprland Lua handles. If this errors, the error text will likely name " +
-      "the correct method — report it back so this can be fixed precisely instead of re-guessed.",
+    "Dismiss all currently visible Hyprland built-in on-screen notifications. UNVERIFIABLE as of " +
+      "this writing: send_notification's fallback was confirmed to produce no visible notification " +
+      "in the first place, so there was nothing on a real session to confirm this actually clears. " +
+      "The underlying call (hl.notification.get() + :dismiss() per handle) runs without erroring, " +
+      "but that's equally consistent with 'it worked' and 'it iterated over nothing'. Given " +
+      "send_notification's fallback is effectively non-functional right now, this tool likely has " +
+      "nothing to do in practice either.",
     {},
     async () => {
       await evalLua(dismissAllNotificationsExpr());
-      return text("Attempted to dismiss on-screen notifications (best-effort — verify visually)");
+      return text(
+        "Ran the dismiss call without error, but this mechanism is unverified and " +
+          "send_notification's fallback is confirmed not to produce visible notifications — don't " +
+          "assume this cleared anything.",
+      );
     },
   );
 }

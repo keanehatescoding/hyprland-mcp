@@ -14,6 +14,8 @@ import { registerLauncherTools } from "./tools/launcher.js";
 import { registerTagTools } from "./tools/tags.js";
 import { registerGroupTools } from "./tools/groups.js";
 import { registerCursorTools } from "./tools/cursor.js";
+import { registerHyprsunsetTools } from "./tools/hyprsunset.js";
+import { registerHyprpaperTools } from "./tools/hyprpaper.js";
 
 const server = new McpServer({
   name: "hyprland-mcp",
@@ -32,6 +34,8 @@ registerLauncherTools(server);
 registerTagTools(server);
 registerGroupTools(server);
 registerCursorTools(server);
+registerHyprsunsetTools(server);
+registerHyprpaperTools(server);
 
 async function main() {
   const transport = new StdioServerTransport();

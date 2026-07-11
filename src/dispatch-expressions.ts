@@ -79,12 +79,13 @@ export function toggleFullscreenExpr(mode?: "full" | "maximize"): string {
 }
 
 /**
- * BEST-EFFORT (revised): a bare hl.dsp.pin() was confirmed NOT to exist against a
- * real Hyprland 0.55.4 session ("attempt to call a nil value (field 'pin')").
- * hl.dsp.window.deny_from_group() worked despite being absent from DeepWiki's
- * abbreviated hl.dsp.window list (close/kill/fullscreen/move/resize/tag) — so
- * that list isn't exhaustive, and 'pin' is likely also under the window
- * namespace by the same pattern. Still unconfirmed; verify before relying on it.
+ * CONFIRMED (real session, Hyprland 0.55.4): hl.dsp.window.pin() is the correct
+ * path. Round-1 testing found a bare hl.dsp.pin() errors with
+ * "attempt to call a nil value" (function doesn't exist); round-2 testing of
+ * hl.dsp.window.pin() instead returned "warning: Window does not qualify to be
+ * pinned" — a semantic rejection from Hyprland's own pin logic, not a missing-
+ * function error, which confirms the path itself is right. Pinning only applies
+ * to floating windows; toggle_floating first if this warns.
  */
 export function pinWindowExpr(): string {
   return luaCall("hl.dsp.window.pin");
@@ -174,12 +175,15 @@ export function moveCursorToCornerExpr(opts: { corner: number; target?: string }
 // ---- notifications ---- //
 
 /**
- * CONFIRMED shape, but NOT a dispatcher — hl.notification.create({ text, timeout,
- * icon?, color?, font_size? }) is a plain hl.* function (confirmed via the wiki's
- * "Expanding functionality" and "Using hyprctl" pages, including a REPL example
- * returning a notification_handle). It must be run via evalLua(), NOT
- * dispatchLua() — hl.dispatch() expects a dispatcher table and this isn't one; a
- * real-session test confirmed there is no hl.dsp.notify at all.
+ * Lua call succeeds without error (confirmed via a real Hyprland 0.55.4 session:
+ * `hyprctl eval` returned "ok"), but that same real-session test confirmed it
+ * produces NO VISIBLE on-screen notification — likely because 0.55.4 is recent
+ * enough that hl.notification's rendering side isn't fully wired up yet, though
+ * the exact cause wasn't tracked down. Treat this as a non-functional fallback
+ * in practice: it will not throw, but it also will not notify anyone of
+ * anything. Kept here (rather than removed) since the call shape itself is
+ * confirmed correct and may start working on a future Hyprland release without
+ * any code change needed here.
  */
 export function createNotificationExpr(opts: { text: string; timeoutMs: number; icon?: string }): string {
   return luaCall("hl.notification.create", {
@@ -190,14 +194,12 @@ export function createNotificationExpr(opts: { text: string; timeoutMs: number; 
 }
 
 /**
- * HIGHLY SPECULATIVE — no documented "dismiss all" function was found anywhere.
- * hl.notification.get() (confirmed to return a list of notification handles) is
- * real; the `:dismiss()` method name on each handle is a guess by analogy with
- * timer handles' `:set_enabled()`. This is a raw Lua statement (a for-loop, not a
- * function call returning a dispatcher table), so it must run via evalLua(), NOT
- * dispatchLua(), even if the method name turns out to be right. If it errors,
- * the error text will very likely name the correct method — update this and its
- * test together once known.
+ * UNVERIFIABLE as of this writing: createNotificationExpr() (above) was confirmed
+ * to produce no visible notification on a real session, which means there was
+ * nothing on screen to actually confirm this dismiss call cleared — its "ok"
+ * result in testing is equally consistent with "it worked" and "the loop ran
+ * over zero notifications and did nothing". The `:dismiss()` method name remains
+ * an unconfirmed guess with zero supporting source.
  */
 export function dismissAllNotificationsExpr(): string {
   return "for _, n in pairs(hl.notification.get()) do n:dismiss() end";

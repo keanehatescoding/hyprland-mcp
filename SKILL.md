@@ -37,6 +37,8 @@ rather than trying alternate arguments.
 | Tags | `tag_window` | Static window tags for use in window rules |
 | Groups | `toggle_group`, `group_cycle`, `toggle_group_lock`, `deny_window_from_group` | Tabbed-container windows |
 | Cursor | `move_cursor`, `move_cursor_to_corner` | Programmatic cursor placement |
+| hyprsunset | `set_sunset_temperature`, `disable_sunset_filter`, `set_sunset_gamma`, `reset_sunset`, `get_sunset_profile` | Blue-light filter / gamma, own `hyprctl hyprsunset` family, not Lua |
+| hyprpaper | `set_wallpaper`, `list_active_wallpapers` | Wallpaper daemon, own `hyprctl hyprpaper` family, not Lua |
 | Escape hatches | `hyprland_dispatch`, `hyprctl_raw` | Anything not covered above |
 
 **Always look up state before mutating it.** Call `list_windows` / `list_workspaces` /
@@ -59,12 +61,19 @@ isn't something you need to think about. It matters when:
   take something other than a named-args table (e.g. `hl.dsp.exec_cmd('firefox')`
   takes a bare string, `hl.dsp.submap("reset")` takes a bare string).
 - A dispatch call errors unexpectedly. Real testing against Hyprland 0.55.4 already
-  found and fixed two wrong guesses: a bare `hl.dsp.pin()` and the entire notification
-  dispatcher approach both errored with `attempt to call a nil value`. Notifications
-  turned out not to be dispatchers at all — `hl.notification.create(...)` is a plain
-  function that must go through `evalLua()`/`hyprctl eval`, not `dispatchLua()`/
-  `hyprctl dispatch`. `pin_window` and `dismiss_notifications` are still unconfirmed;
-  if either (or anything else) errors, don't assume the MCP server is broken generally
+  found and fixed one wrong guess: a bare `hl.dsp.pin()` errored with
+  `attempt to call a nil value`; `hl.dsp.window.pin()` is the correct path
+  (confirmed by a *semantic* "doesn't qualify" warning on a real session, not a
+  missing-function error — pin only works on floating windows).
+- Separately: `send_notification`'s fallback and `dismiss_notifications` are a
+  known dead end right now, not a bug to chase. `hl.notification.create(...)` is
+  real, documented, and runs without erroring via `evalLua()`/`hyprctl eval` — but
+  a real-session test confirmed it produces no visible on-screen notification at
+  all (likely a 0.55.4 rendering gap). If notify-send isn't installed, tell the
+  user notifications won't work here rather than reporting success. Don't spend
+  effort re-guessing the dismiss method name until notification creation itself
+  actually renders something.
+- For anything else that errors: don't assume the MCP server is broken generally
   — check https://wiki.hypr.land/Configuring/Basics/Dispatchers/,
   https://wiki.hypr.land/Configuring/Advanced-and-Cool/Expanding-functionality/, or
   the user's own Lua LSP stubs, and pass the fix via `raw_expression` (or `evalLua`
@@ -146,6 +155,27 @@ since it's a persistent GUI process, not a one-shot command. If it's not install
 the error message names the binary and points at the install source rather than
 failing silently.
 
+## hyprsunset and hyprpaper: not Lua dispatchers either
+
+Like hyprlauncher, neither of these goes through `hl.dsp.*`/`hl.notification.*` —
+they're each their own `hyprctl <name> <args>` subcommand family (`hyprctl
+hyprsunset ...`, `hyprctl hyprpaper ...`), same category as `keyword`/`getoption`,
+so none of the 0.55 Lua-dispatch caveats above apply to them.
+
+- **hyprsunset**: `reset_sunset` and `get_sunset_profile` specifically are flagged
+  in their tool descriptions as reported broken (`invalid command`) on hyprsunset
+  v0.3.3 via a Hyprland forum bug report — `temperature`/`identity`/`gamma` are
+  unaffected. If `reset_sunset` errors, there's no clean workaround; fall back to
+  calling `set_sunset_temperature`/`set_sunset_gamma`/`disable_sunset_filter` with
+  the values the user's profile should have at the current time.
+- **hyprpaper**: only `wallpaper` and `listactive` are wrapped as dedicated tools,
+  matching what the current Hyprland wiki documents. Older tutorials mention
+  `preload`/`reload`/`unload`/`listloaded`, but the wiki itself now says these may
+  not exist on current versions — deliberately not wrapped here to avoid presenting
+  version-dependent commands as reliable. If you need them, use `hyprctl_raw` with
+  `["hyprpaper", "--help"]` first to check what your installed version actually
+  supports. Also requires `ipc = true` (the default) in hyprpaper.conf.
+
 ## Common request → tool mappings
 
 - "What's open right now?" → `list_windows`
@@ -166,3 +196,5 @@ failing silently.
 - "Tab these windows together" → `toggle_group` (call it on the window you want to
   become the group anchor, then move other windows into the same tiled slot)
 - "Tag this as a 'code' window" → `tag_window` with `tag: "+code"`
+- "Turn on night mode / warm up my screen" → `set_sunset_temperature` (e.g. 3000)
+- "Change my wallpaper" → `set_wallpaper` (ask which monitor if they have more than one)

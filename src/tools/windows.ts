@@ -164,12 +164,10 @@ export function registerWindowTools(server: McpServer) {
 
   server.tool(
     "pin_window",
-    "Pin the active (usually floating) window so it stays visible across all workspaces. " +
-      "NOTE: the exact 0.55+ Lua path for 'pin' isn't documented anywhere I could confirm at " +
-      "authoring time (it's notably absent from the hl.dsp.window.* list that close/kill/fullscreen/" +
-      "move/resize/tag belong to) — this guesses it's a top-level dispatcher like focus/submap/exec_cmd. " +
-      "If this errors, use hyprland_dispatch with a raw_expression you've verified against your own " +
-      "Lua LSP stubs (see README) instead.",
+    "Pin the active window so it stays visible across all workspaces. Only works on FLOATING " +
+      "windows — Hyprland rejects pinning a tiled window with a 'Window does not qualify to be " +
+      "pinned' warning (not an error; the call succeeds but has no effect). Use toggle_floating " +
+      "first if this warns and the window should stay pinned.",
     {},
     async () => {
       const out = await dispatchLua(pinWindowExpr());
