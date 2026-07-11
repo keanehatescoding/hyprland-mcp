@@ -27,7 +27,9 @@ function text(payload: unknown) {
  * visible output — this rewrite uses the older, long-stable mechanism instead.
  * Confirmed parameter meanings (Configuring/Advanced-and-Cool/Notifications,
  * Using-hyprctl): icon 0=Warning, 1=Info, 2=Hint, 3=Error, 4=Confused, 5=OK,
- * -1=None; color e.g. 'rgb(ff1ea3)' or 0 for default.
+ * -1=None; color e.g. 'rgb(ff1ea3)' or 0 for default. Confirmed working
+ * end-to-end on a real Hyprland 0.55.4 session: notification visibly appeared
+ * and dismissnotify visibly cleared it.
  */
 function urgencyToIcon(urgency?: "low" | "normal" | "critical"): number {
   if (urgency === "critical") return 3; // Error

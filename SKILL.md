@@ -39,6 +39,8 @@ rather than trying alternate arguments.
 | Cursor | `move_cursor`, `move_cursor_to_corner` | Programmatic cursor placement |
 | hyprsunset | `set_sunset_temperature`, `disable_sunset_filter`, `set_sunset_gamma`, `reset_sunset`, `get_sunset_profile` | Blue-light filter / gamma, own `hyprctl hyprsunset` family, not Lua |
 | hyprpaper | `set_wallpaper`, `list_active_wallpapers` | Wallpaper daemon, own `hyprctl hyprpaper` family, not Lua |
+| hypridle | `start_hypridle`, `stop_hypridle`, `get_hypridle_status` | Idle daemon — NO hyprctl/IPC surface, process control only |
+| hyprlock | `lock_screen`, `unlock_screen`, `refresh_lockscreen`, `get_lock_status` | Screen lock — NO hyprctl/IPC surface, process signals only |
 | Escape hatches | `hyprland_dispatch`, `hyprctl_raw` | Anything not covered above |
 
 **Always look up state before mutating it.** Call `list_windows` / `list_workspaces` /
@@ -82,7 +84,8 @@ non-Lua hyprctl subcommands that predate the 0.55 rewrite by about two years.
 This project's first attempt used the newer `hl.notification.create`/`get()` Lua
 API instead, which a real Hyprland 0.55.4 session confirmed produces no visible
 on-screen effect at all — that's why the mechanism was switched, not because the
-Lua call itself was wrong. `icon` is a small integer enum (0=Warning, 1=Info,
+Lua call itself was wrong. Confirmed working end-to-end on a real session
+(notification appeared, then dismissnotify cleared it). `icon` is a small integer enum (0=Warning, 1=Info,
 2=Hint, 3=Error, 4=Confused, 5=OK, -1=None), not a name or path — `send_notification`
 maps `urgency` onto it internally. If notifications still don't appear after this
 fix, that points at something else (e.g. hyprctl not reaching a real Hyprland
@@ -194,6 +197,26 @@ so none of the 0.55 Lua-dispatch caveats above apply to them.
   `["hyprpaper", "--help"]` first to check what your installed version actually
   supports. Also requires `ipc = true` (the default) in hyprpaper.conf.
 
+## hypridle and hyprlock: no hyprctl/IPC surface at all — process control only
+
+Unlike everything else in this project, neither of these has ANY hyprctl
+subcommand or Lua path to check — confirmed against the wiki, they're controlled
+purely through process lifecycle (`start_hypridle`/`lock_screen` spawn the
+binary, checking first via `pgrep` to avoid double-spawning) and, for hyprlock,
+Unix signals (`SIGUSR1` unlocks, `SIGUSR2` refreshes labels/images — hyprlock's
+own documented mechanism, not something reverse-engineered here). If a tool in
+this category errors, the likely causes are: the binary isn't installed, `pgrep`/
+`pkill` aren't on PATH (part of procps, virtually always present), or — for
+hyprlock specifically — a process-name mismatch if the user is running some
+wrapped/renamed variant of the binary.
+
+**`unlock_screen` bypasses password authentication.** This is hyprlock's actual
+documented unlock mechanism, not a security hole introduced here, but it means
+anything able to call this MCP tool can unlock a locked session with no password
+check. Only call it on a clear, direct request from the user to unlock their own
+session right now — never as a side effect of some other task, and never if the
+request's framing suggests someone other than the session owner is asking.
+
 ## Common request → tool mappings
 
 - "What's open right now?" → `list_windows`
@@ -216,3 +239,5 @@ so none of the 0.55 Lua-dispatch caveats above apply to them.
 - "Tag this as a 'code' window" → `tag_window` with `tag: "+code"`
 - "Turn on night mode / warm up my screen" → `set_sunset_temperature` (e.g. 3000)
 - "Change my wallpaper" → `set_wallpaper` (ask which monitor if they have more than one)
+- "Don't let my screen lock while I'm watching this" → `stop_hypridle`
+- "Lock my screen" → `lock_screen`

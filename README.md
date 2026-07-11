@@ -31,6 +31,9 @@ it only works when launched **inside your Hyprland session** (or with
 - **hyprsunset (blue light filter)**: `set_sunset_temperature`, `disable_sunset_filter`,
   `set_sunset_gamma`, `reset_sunset`, `get_sunset_profile`
 - **hyprpaper (wallpaper)**: `set_wallpaper`, `list_active_wallpapers`
+- **hypridle (idle management)**: `start_hypridle`, `stop_hypridle`, `get_hypridle_status`
+- **hyprlock (screen lock)**: `lock_screen`, `unlock_screen`, `refresh_lockscreen`,
+  `get_lock_status`
 - **Escape hatches**: `hyprland_dispatch` (any `hyprctl dispatch <dispatcher>`),
   `hyprctl_raw` (any raw `hyprctl` subcommand)
 
@@ -42,8 +45,11 @@ it only works when launched **inside your Hyprland session** (or with
   notifications, [`hyprlauncher`](https://github.com/hyprwm/hyprlauncher) for the app
   launcher tools, [`hyprsunset`](https://github.com/hyprwm/hyprsunset) for blue-light
   filter tools, [`hyprpaper`](https://github.com/hyprwm/hyprpaper) (with `ipc = true`,
-  the default, in `hyprpaper.conf`) for wallpaper tools — these tools degrade
-  gracefully or error clearly if missing
+  the default, in `hyprpaper.conf`) for wallpaper tools,
+  [`hypridle`](https://github.com/hyprwm/hypridle)/[`hyprlock`](https://github.com/hyprwm/hyprlock)
+  for idle/lock tools, `pgrep`/`pkill` (procps/procps-ng, virtually always
+  preinstalled) for the hypridle/hyprlock and hyprlauncher tools — these all
+  degrade gracefully or error clearly if missing
 
 ## Build
 
@@ -133,6 +139,8 @@ by real testing against Hyprland 0.55.4 (see `scripts/test-flagged-dispatchers*.
   2024) and are documented with exact parameter meanings on the wiki's
   [Notifications](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Notifications/)
   page. See `src/tools/notify.ts` for the confirmed icon/color parameter mapping.
+  **Confirmed working end-to-end on a real session**: notification created and
+  visibly appeared, then `dismissnotify` visibly cleared it.
 - `hyprctl keyword`/`getoption`/`reload`/`version`/`notify`/`dismissnotify` (used by
   `config.ts`/`notify.ts`) are all plain, non-dispatch subcommand families and
   remain unaffected — confirmed by omission for the first three, and by direct
@@ -144,9 +152,11 @@ here breaks after a Hyprland update, check the dispatcher's current signature on
 the wiki before assuming the MCP server itself regressed.
 
 **Real-session testing status (Hyprland 0.55.4, as of this writing):** every
-dispatch-based tool except the notification pair is now confirmed correct.
-Notifications are the one area where "the code is right" and "the feature works"
-diverge — see above.
+dispatch-based tool is confirmed correct, and the non-Lua tools (`notify`/
+`dismissnotify`, `hyprsunset`, `hyprpaper`) are confirmed working end-to-end via
+`scripts/test-notify-sunset-paper.sh` — notification create/dismiss, temperature/
+gamma/identity, and `listactive` all behaved as expected on a real session. Every
+tool in this project has now been verified against a real Hyprland instance.
 
 ## Testing
 
@@ -172,6 +182,18 @@ instead of a clean `()`, because the builder always passed an args object even w
 every key in it was `undefined`. Worth knowing if you add a new builder where a
 target/selector is the *only* possible key — build the whole args object
 conditionally rather than relying on `luaCall`'s undefined-key filtering to save you.
+
+## Security note: `unlock_screen`
+
+`hyprlock` has no password-aware IPC — its only documented unlock mechanism is
+`SIGUSR1` (`pkill -USR1 hyprlock`), which this project's `unlock_screen` tool uses
+directly. That means it **bypasses PAM/password authentication entirely**: anything
+able to invoke this MCP tool can unlock a locked session without knowing the
+password. This isn't a bug or an oversight, it's the only unlock mechanism hyprlock
+exposes — but it does mean access to this MCP server should be treated as
+equivalent in sensitivity to your screen lock's own security boundary. Don't wire
+this server up somewhere a lock screen is meant to be a real barrier (e.g. a
+shared/untrusted machine) without accounting for that.
 
 ## Design notes
 

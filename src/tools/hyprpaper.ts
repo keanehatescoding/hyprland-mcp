@@ -24,6 +24,7 @@ function text(payload: unknown) {
  * they're deliberately not wrapped as dedicated tools here to avoid presenting
  * version-dependent commands with false confidence. hyprpaper also requires
  * `ipc = true` (the default) in hyprpaper.conf for any of this to work at all.
+ * `wallpaper` and `listactive` both confirmed working on a real session.
  */
 export function registerHyprpaperTools(server: McpServer) {
   server.tool(

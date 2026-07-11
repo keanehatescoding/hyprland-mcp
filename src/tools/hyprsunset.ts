@@ -24,7 +24,11 @@ function text(payload: unknown) {
  *   hyprctl hyprsunset profile
  * A Hyprland forum bug report (hyprsunset v0.3.3) noted `reset` and `profile`
  * specifically return "invalid command" while temperature/identity/gamma work —
- * flagged on those two tools below rather than assumed fixed.
+ * flagged on those two tools below rather than assumed fixed. All five commands
+ * confirmed working on a real Hyprland 0.55.4 + hyprsunset session (temperature,
+ * gamma, and identity produced a visible effect; reset/profile weren't hit by
+ * the known bug in that test run either, but the flag is left in place since a
+ * single successful run doesn't rule out the reported issue on other versions).
  */
 export function registerHyprsunsetTools(server: McpServer) {
   server.tool(
