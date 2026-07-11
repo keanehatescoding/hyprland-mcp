@@ -173,34 +173,10 @@ export function moveCursorToCornerExpr(opts: { corner: number; target?: string }
 }
 
 // ---- notifications ---- //
-
-/**
- * Lua call succeeds without error (confirmed via a real Hyprland 0.55.4 session:
- * `hyprctl eval` returned "ok"), but that same real-session test confirmed it
- * produces NO VISIBLE on-screen notification — likely because 0.55.4 is recent
- * enough that hl.notification's rendering side isn't fully wired up yet, though
- * the exact cause wasn't tracked down. Treat this as a non-functional fallback
- * in practice: it will not throw, but it also will not notify anyone of
- * anything. Kept here (rather than removed) since the call shape itself is
- * confirmed correct and may start working on a future Hyprland release without
- * any code change needed here.
- */
-export function createNotificationExpr(opts: { text: string; timeoutMs: number; icon?: string }): string {
-  return luaCall("hl.notification.create", {
-    text: opts.text,
-    timeout: opts.timeoutMs,
-    icon: opts.icon,
-  });
-}
-
-/**
- * UNVERIFIABLE as of this writing: createNotificationExpr() (above) was confirmed
- * to produce no visible notification on a real session, which means there was
- * nothing on screen to actually confirm this dismiss call cleared — its "ok"
- * result in testing is equally consistent with "it worked" and "the loop ran
- * over zero notifications and did nothing". The `:dismiss()` method name remains
- * an unconfirmed guess with zero supporting source.
- */
-export function dismissAllNotificationsExpr(): string {
-  return "for _, n in pairs(hl.notification.get()) do n:dismiss() end";
-}
+//
+// NOT handled here. hyprctl notify/dismissnotify are plain (non-Lua) hyprctl
+// subcommands predating the 0.55 rewrite — see src/tools/notify.ts. An earlier
+// version of this file had Lua builders (hl.notification.create/get) here; a real
+// Hyprland 0.55.4 session confirmed that API produces no visible output, so
+// notify.ts was rewritten to use the older, stable hyprctl notify mechanism
+// instead, and these builders were removed rather than kept as dead code.

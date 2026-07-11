@@ -25,8 +25,6 @@ import {
   denyWindowFromGroupExpr,
   moveCursorExpr,
   moveCursorToCornerExpr,
-  createNotificationExpr,
-  dismissAllNotificationsExpr,
 } from "../dispatch-expressions.js";
 
 describe("toLuaValue / luaCall primitives", () => {
@@ -246,25 +244,4 @@ describe("cursor dispatch expressions", () => {
   });
 });
 
-describe("notification (not dispatchers — run via evalLua)", () => {
-  test("createNotificationExpr with icon", () => {
-    assert.equal(
-      createNotificationExpr({ text: "hello", timeoutMs: 4000, icon: "ok" }),
-      'hl.notification.create({ text = "hello", timeout = 4000, icon = "ok" })',
-    );
-  });
 
-  test("createNotificationExpr without icon omits the key", () => {
-    assert.equal(
-      createNotificationExpr({ text: "hello", timeoutMs: 4000 }),
-      'hl.notification.create({ text = "hello", timeout = 4000 })',
-    );
-  });
-
-  test("dismissAllNotificationsExpr is a raw for-loop statement, not a function call", () => {
-    assert.equal(
-      dismissAllNotificationsExpr(),
-      "for _, n in pairs(hl.notification.get()) do n:dismiss() end",
-    );
-  });
-});

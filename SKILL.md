@@ -65,14 +65,7 @@ isn't something you need to think about. It matters when:
   `attempt to call a nil value`; `hl.dsp.window.pin()` is the correct path
   (confirmed by a *semantic* "doesn't qualify" warning on a real session, not a
   missing-function error — pin only works on floating windows).
-- Separately: `send_notification`'s fallback and `dismiss_notifications` are a
-  known dead end right now, not a bug to chase. `hl.notification.create(...)` is
-  real, documented, and runs without erroring via `evalLua()`/`hyprctl eval` — but
-  a real-session test confirmed it produces no visible on-screen notification at
-  all (likely a 0.55.4 rendering gap). If notify-send isn't installed, tell the
-  user notifications won't work here rather than reporting success. Don't spend
-  effort re-guessing the dismiss method name until notification creation itself
-  actually renders something.
+- Notifications are NOT handled via Lua dispatch at all — see the next section.
 - For anything else that errors: don't assume the MCP server is broken generally
   — check https://wiki.hypr.land/Configuring/Basics/Dispatchers/,
   https://wiki.hypr.land/Configuring/Advanced-and-Cool/Expanding-functionality/, or
@@ -80,6 +73,31 @@ isn't something you need to think about. It matters when:
   for non-dispatcher calls) until the code itself is updated.
 - `hyprctl keyword`/`getoption`/`reload`/`version` are unaffected by any of this —
   they're a separate hyprctl subcommand family, not "dispatch".
+
+## Notifications: a different mechanism entirely, not Lua
+
+`send_notification`'s fallback and `dismiss_notifications` use `hyprctl notify
+<icon> <time_ms> <color> <message>` / `hyprctl dismissnotify [amount]` — plain,
+non-Lua hyprctl subcommands that predate the 0.55 rewrite by about two years.
+This project's first attempt used the newer `hl.notification.create`/`get()` Lua
+API instead, which a real Hyprland 0.55.4 session confirmed produces no visible
+on-screen effect at all — that's why the mechanism was switched, not because the
+Lua call itself was wrong. `icon` is a small integer enum (0=Warning, 1=Info,
+2=Hint, 3=Error, 4=Confused, 5=OK, -1=None), not a name or path — `send_notification`
+maps `urgency` onto it internally. If notifications still don't appear after this
+fix, that points at something else (e.g. hyprctl not reaching a real Hyprland
+instance) rather than a repeat of the old Lua-rendering-gap issue.
+
+## Wiki versioning: rolling pages track git main, not the latest release
+
+`wiki.hypr.land`'s un-versioned pages describe git `main`, which runs ahead of
+whatever Hyprland version is actually installed — confirmed the hard way when
+`hyprctl repl` (documented on the rolling wiki) turned out to not exist on a real
+0.55.4 session. When a specific installed version's behavior matters, prefer
+version-pinned docs (`wiki.hypr.land/<version>/...`) or testing against a real
+session over trusting the rolling pages at face value. Treat anything from there
+that isn't corroborated by a working example, a dated GitHub PR/issue, or a real
+test as "probably true for the latest release, not guaranteed."
 
 ## Selector syntax gotchas (windows tools)
 

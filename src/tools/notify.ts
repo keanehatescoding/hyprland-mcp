@@ -2,8 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { evalLua } from "../hyprctl.js";
-import { createNotificationExpr, dismissAllNotificationsExpr } from "../dispatch-expressions.js";
+import { runHyprctl } from "../hyprctl.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -18,22 +17,37 @@ function text(payload: unknown) {
   };
 }
 
+/**
+ * IMPORTANT: `hyprctl notify`/`hyprctl dismissnotify` are plain hyprctl subcommands
+ * that predate the Hyprland 0.55 Lua rewrite by about two years (dismissnotify
+ * merged in hyprwm/Hyprland#4790, 2024; notify existed before that) — they are
+ * NOT part of hl.dsp.* or hl.notification.*, and do NOT go through dispatchLua()/
+ * evalLua(). An earlier version of this file used the newer hl.notification.create
+ * Lua API instead, which a real Hyprland 0.55.4 session confirmed produces no
+ * visible output — this rewrite uses the older, long-stable mechanism instead.
+ * Confirmed parameter meanings (Configuring/Advanced-and-Cool/Notifications,
+ * Using-hyprctl): icon 0=Warning, 1=Info, 2=Hint, 3=Error, 4=Confused, 5=OK,
+ * -1=None; color e.g. 'rgb(ff1ea3)' or 0 for default.
+ */
+function urgencyToIcon(urgency?: "low" | "normal" | "critical"): number {
+  if (urgency === "critical") return 3; // Error
+  if (urgency === "low") return 2; // Hint
+  return 1; // Info
+}
+
 export function registerNotifyTools(server: McpServer) {
   server.tool(
     "send_notification",
     "Send a desktop notification via notify-send (requires a notification daemon like mako or " +
-      "dunst running). If notify-send is unavailable, falls back to Hyprland's built-in " +
-      "hl.notification.create — but a real-session test confirmed this fallback produces NO " +
-      "VISIBLE notification even though the underlying call succeeds without error (likely a " +
-      "Hyprland 0.55.4 rendering gap, not a bug in this call). Practically: if notify-send isn't " +
-      "installed, treat this tool as non-functional and tell the user to install a real " +
-      "notification daemon rather than assuming the fallback message means something appeared.",
+      "dunst running). Falls back to Hyprland's built-in `hyprctl notify` if notify-send is " +
+      "unavailable — a long-stable, non-Lua hyprctl subcommand (not the newer hl.notification.* " +
+      "Lua API, which was confirmed on a real session to render nothing visible).",
     {
       title: z.string(),
       body: z.string().optional(),
       urgency: z.enum(["low", "normal", "critical"]).optional(),
       app_name: z.string().optional(),
-      icon: z.string().optional().describe("Icon name or path"),
+      icon: z.string().optional().describe("Icon name or path (only used for the notify-send path)"),
       timeout_ms: z.number().optional().describe("Timeout in milliseconds, 0 = persistent"),
     },
     async ({ title, body, urgency, app_name, icon, timeout_ms }) => {
@@ -49,12 +63,11 @@ export function registerNotifyTools(server: McpServer) {
         return text(`Notification sent: ${title}`);
       } catch (err: any) {
         const fullText = body ? `${title}: ${body}` : title;
-        await evalLua(createNotificationExpr({ text: fullText, timeoutMs: timeout_ms ?? 5000, icon }));
+        const iconNum = urgencyToIcon(urgency);
+        const timeMs = timeout_ms ?? 5000;
+        await runHyprctl(["notify", `${iconNum}`, `${timeMs}`, "0", fullText]);
         return text(
-          `notify-send unavailable (${err.message}); attempted Hyprland's built-in notification ` +
-            `system as a fallback, but this was confirmed to produce no visible on-screen effect on ` +
-            `a real Hyprland 0.55.4 session — the notification almost certainly did NOT appear. ` +
-            `Install notify-send + mako/dunst for working notifications.`,
+          `notify-send unavailable (${err.message}); used Hyprland's built-in hyprctl notify instead.`,
         );
       }
     },
@@ -62,21 +75,19 @@ export function registerNotifyTools(server: McpServer) {
 
   server.tool(
     "dismiss_notifications",
-    "Dismiss all currently visible Hyprland built-in on-screen notifications. UNVERIFIABLE as of " +
-      "this writing: send_notification's fallback was confirmed to produce no visible notification " +
-      "in the first place, so there was nothing on a real session to confirm this actually clears. " +
-      "The underlying call (hl.notification.get() + :dismiss() per handle) runs without erroring, " +
-      "but that's equally consistent with 'it worked' and 'it iterated over nothing'. Given " +
-      "send_notification's fallback is effectively non-functional right now, this tool likely has " +
-      "nothing to do in practice either.",
-    {},
-    async () => {
-      await evalLua(dismissAllNotificationsExpr());
-      return text(
-        "Ran the dismiss call without error, but this mechanism is unverified and " +
-          "send_notification's fallback is confirmed not to produce visible notifications — don't " +
-          "assume this cleared anything.",
-      );
+    "Dismiss Hyprland's built-in on-screen notifications via `hyprctl dismissnotify` (confirmed, " +
+      "non-Lua, stable since 2024).",
+    {
+      amount: z
+        .number()
+        .int()
+        .optional()
+        .describe("Dismiss only the oldest N notifications; omit to dismiss all"),
+    },
+    async ({ amount }) => {
+      const arg = amount !== undefined ? `${amount}` : "-1";
+      const out = await runHyprctl(["dismissnotify", arg]);
+      return text(out || "Dismissed notifications");
     },
   );
 }

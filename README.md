@@ -99,6 +99,16 @@ This project targets that new syntax throughout (`src/hyprctl.ts` has `luaCall()
 generated expression as a pure, unit-tested function). Confidence tiers, now backed
 by real testing against Hyprland 0.55.4 (see `scripts/test-flagged-dispatchers*.sh`):
 
+> **A documentation lesson learned building this**: `wiki.hypr.land`'s un-versioned
+> pages track git `main`, not the latest tagged release — they can (and did)
+> describe features not yet in any shipped 0.55.x build. `hyprctl repl` is one
+> confirmed example: documented on the rolling wiki, absent on a real 0.55.4
+> session. When verifying a specific version's behavior, prefer version-pinned
+> docs (`wiki.hypr.land/<version>/...`) or a real session over the rolling pages,
+> and treat anything from the rolling wiki that isn't independently corroborated
+> (a working example, a dated GitHub PR/issue, multiple converging sources) as
+> "probably true for the latest release, not guaranteed."
+
 - **Confirmed against the wiki, a working example, or a real 0.55.4 session**:
   `hl.dsp.focus` (including `{ monitor = ... }`), `hl.dsp.window.{close,kill,move,
   resize,float,fullscreen,tag,deny_from_group,pin}`, `hl.dsp.workspace.{change,
@@ -110,22 +120,23 @@ by real testing against Hyprland 0.55.4 (see `scripts/test-flagged-dispatchers*.
   rather than the "attempt to call a nil value" error a wrong path produces, which
   is what distinguishes "right path, wrong preconditions" from "guessed wrong".
 - **Confirmed BROKEN against a real session, since fixed**: a bare `hl.dsp.pin()`
-  and `hl.dsp.notify(...)`/`hl.dsp.dismiss_notify()` all errored with
-  `attempt to call a nil value` on Hyprland 0.55.4.
-- **Confirmed non-functional in practice (not an error, but does nothing visible)**:
-  `hl.notification.create({text, timeout, icon?})` — the call itself is real, is
-  documented on the wiki, and returns `ok` from `hyprctl eval` with no error, but a
-  real-session test confirmed it produces no on-screen notification at all, most
-  likely because 0.55.4 is recent enough that the rendering side isn't fully wired
-  up yet. `send_notification`'s fallback and `dismiss_notifications` are both kept
-  in the codebase (rather than removed) since the call shapes are correct and may
-  simply start working on a future Hyprland release, but both tool descriptions now
-  say plainly not to expect a visible effect. If notify-send isn't installed,
-  effectively no notification tooling works here right now — install a real
-  notification daemon (mako/dunst) instead of relying on the fallback.
-- `hyprctl keyword`/`getoption`/`reload`/`version` (used by `config.ts`) are a
-  separate, non-dispatch subcommand family and remain unaffected — confirmed by
-  omission, nothing in this family has errored in real testing so far.
+  errored with `attempt to call a nil value` on Hyprland 0.55.4; corrected to
+  `hl.dsp.window.pin()`.
+- **Notifications: fixed by using a different mechanism entirely.** The first pass
+  at this project used the newer `hl.notification.create`/`get()` Lua API, which a
+  real Hyprland 0.55.4 session confirmed produces no visible on-screen effect at
+  all (call succeeds, nothing renders). `send_notification`'s fallback and
+  `dismiss_notifications` now use `hyprctl notify <icon> <time_ms> <color>
+  <message>` / `hyprctl dismissnotify [amount]` instead — plain, non-Lua hyprctl
+  subcommands that predate the 0.55 rewrite by about two years (`dismissnotify`
+  merged in [hyprwm/Hyprland#4790](https://github.com/hyprwm/Hyprland/pull/4790),
+  2024) and are documented with exact parameter meanings on the wiki's
+  [Notifications](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Notifications/)
+  page. See `src/tools/notify.ts` for the confirmed icon/color parameter mapping.
+- `hyprctl keyword`/`getoption`/`reload`/`version`/`notify`/`dismissnotify` (used by
+  `config.ts`/`notify.ts`) are all plain, non-dispatch subcommand families and
+  remain unaffected — confirmed by omission for the first three, and by direct
+  wiki documentation predating 0.55 for the notification pair.
 
 This is a fast-moving part of Hyprland (0.55.0 → 0.55.4 shipped within about a
 month, with dispatcher-behavior bugfixes in each). If something that used to work
