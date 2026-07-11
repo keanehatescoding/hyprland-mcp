@@ -34,6 +34,7 @@ it only works when launched **inside your Hyprland session** (or with
 - **hypridle (idle management)**: `start_hypridle`, `stop_hypridle`, `get_hypridle_status`
 - **hyprlock (screen lock)**: `lock_screen`, `unlock_screen`, `refresh_lockscreen`,
   `get_lock_status`
+- **hyprpicker (color picker)**: `pick_color`
 - **Escape hatches**: `hyprland_dispatch` (any `hyprctl dispatch <dispatcher>`),
   `hyprctl_raw` (any raw `hyprctl` subcommand)
 
@@ -47,9 +48,10 @@ it only works when launched **inside your Hyprland session** (or with
   filter tools, [`hyprpaper`](https://github.com/hyprwm/hyprpaper) (with `ipc = true`,
   the default, in `hyprpaper.conf`) for wallpaper tools,
   [`hypridle`](https://github.com/hyprwm/hypridle)/[`hyprlock`](https://github.com/hyprwm/hyprlock)
-  for idle/lock tools, `pgrep`/`pkill` (procps/procps-ng, virtually always
-  preinstalled) for the hypridle/hyprlock and hyprlauncher tools — these all
-  degrade gracefully or error clearly if missing
+  for idle/lock tools, [`hyprpicker`](https://github.com/hyprwm/hyprpicker) (+
+  `wl-clipboard` for its autocopy option) for the color picker tool, `pgrep`/`pkill`
+  (procps/procps-ng, virtually always preinstalled) for the hypridle/hyprlock and
+  hyprlauncher tools — these all degrade gracefully or error clearly if missing
 
 ## Build
 

@@ -18,6 +18,7 @@ import { registerHyprsunsetTools } from "./tools/hyprsunset.js";
 import { registerHyprpaperTools } from "./tools/hyprpaper.js";
 import { registerHypridleTools } from "./tools/hypridle.js";
 import { registerHyprlockTools } from "./tools/hyprlock.js";
+import { registerHyprpickerTools } from "./tools/hyprpicker.js";
 
 const server = new McpServer({
   name: "hyprland-mcp",
@@ -40,6 +41,7 @@ registerHyprsunsetTools(server);
 registerHyprpaperTools(server);
 registerHypridleTools(server);
 registerHyprlockTools(server);
+registerHyprpickerTools(server);
 
 async function main() {
   const transport = new StdioServerTransport();

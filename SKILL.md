@@ -41,6 +41,7 @@ rather than trying alternate arguments.
 | hyprpaper | `set_wallpaper`, `list_active_wallpapers` | Wallpaper daemon, own `hyprctl hyprpaper` family, not Lua |
 | hypridle | `start_hypridle`, `stop_hypridle`, `get_hypridle_status` | Idle daemon — NO hyprctl/IPC surface, process control only |
 | hyprlock | `lock_screen`, `unlock_screen`, `refresh_lockscreen`, `get_lock_status` | Screen lock — NO hyprctl/IPC surface, process signals only |
+| hyprpicker | `pick_color` | Blocking foreground CLI — no daemon, no hyprctl |
 | Escape hatches | `hyprland_dispatch`, `hyprctl_raw` | Anything not covered above |
 
 **Always look up state before mutating it.** Call `list_windows` / `list_workspaces` /
@@ -140,17 +141,17 @@ wants a change to stick permanently, that means editing their actual config file
 separate, file-editing task, not something these tools do) — say so rather than
 implying the tool call made it permanent.
 
-## Screenshot tools: blocking behavior
+## Blocking, interactive tools: don't call these unattended
 
-`take_region_screenshot` calls `slurp`, which pauses and waits for the user to
-click-drag a region **on their real screen, right now**. Only call this tool when the
-user is actively present and expecting to make a selection (e.g. they just asked "let
-me select a region to screenshot") — don't call it as a background/unattended step in
-a longer chain, since it will hang until someone interacts with the screen or presses
-Escape to cancel.
+`take_region_screenshot` calls `slurp`, and `pick_color` calls `hyprpicker` —
+both pause and wait for the user to interact **on their real screen, right now**
+(a click-drag region selection, or a single click respectively; Escape cancels
+either). Only call these when the user is actively present and clearly expecting
+to interact — never as a background/unattended step in a longer chain, since
+they'll hang until someone acts.
 
-`take_screenshot` (whole layout or `-o <monitor>`) and `screenshot_active_window` do
-not block on user input and are safe to call unattended.
+`take_screenshot` (whole layout or `-o <monitor>`) and `screenshot_active_window`
+do not block on user input and are safe to call unattended.
 
 ## Reaching for the escape hatches
 
@@ -241,3 +242,4 @@ request's framing suggests someone other than the session owner is asking.
 - "Change my wallpaper" → `set_wallpaper` (ask which monitor if they have more than one)
 - "Don't let my screen lock while I'm watching this" → `stop_hypridle`
 - "Lock my screen" → `lock_screen`
+- "What color is this?" / "grab this color for me" → `pick_color`
