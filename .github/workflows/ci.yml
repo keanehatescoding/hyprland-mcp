@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit tests
+        run: node --test build/__tests__/*.test.js
+
+      - name: Verify no broken dispatcher paths in expression builders
+        # Ensure the actual luaCall() invocations don't reference dispatcher paths
+        # that were discovered to not exist on real Hyprland sessions.
+        # (Comments/docstrings mentioning the old names are fine — this only
+        #  checks the generated Lua expression strings.)
+        run: |
+          if grep -nP 'luaCall\("hl\.dsp\.workspace\.change(?![_a-z])' src/dispatch-expressions.ts; then
+            echo "ERROR: workspace.change still used in a luaCall!" && exit 1
+          fi
+          if grep -n 'luaCall("hl.dsp.workspace.move_to_monitor' src/dispatch-expressions.ts; then
+            echo "ERROR: workspace.move_to_monitor still used in a luaCall!" && exit 1
+          fi
+          echo "All dispatch expression sanity checks passed."
