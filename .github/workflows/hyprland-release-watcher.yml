@@ -1,0 +1,64 @@
+name: Hyprland Release Watcher
+
+on:
+  schedule:
+    # Run daily at 10:00 UTC
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Check latest Hyprland release and file issue
+        uses: actions/github-script@v7
+        with:
+          github: repo  # pre-authenticated octokit instance
+          script: |
+            const { data: release } = await github.rest.repos.getLatestRelease({
+              owner: 'hyprwm',
+              repo: 'Hyprland',
+            });
+            const latestTag = release.tag_name;
+
+            // Check if an open issue for this release already exists
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'hyprland-release',
+            });
+            const existing = issues.find(i => i.title.includes(latestTag));
+            if (existing) {
+              console.log(`Issue for ${latestTag} already exists: ${existing.html_url}`);
+              return;
+            }
+
+            // Extract the first few changelog sections for quick review
+            const changelog = release.body
+              ? release.body.split('\n').filter(l => l.startsWith('## ') || l.startsWith('### ') || l.startsWith(' - ') || l.startsWith('## ')).slice(0, 30).join('\n')
+              : '(no changelog body)';
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `New Hyprland release: ${latestTag}`,
+              body: `A new Hyprland release was detected.\n\n` +
+                `## Release: ${release.name || latestTag}\n\n` +
+                `[\`${latestTag}\`](${release.html_url})\n\n` +
+                `## What to review\n\n` +
+                `- [Dispatchers wiki](https://wiki.hypr.land/${latestTag}/Configuring/Basics/Dispatchers/)\n` +
+                `- [Lua stubs](https://github.com/hyprwm/Hyprland/blob/${latestTag.replace('v','')}/assets/hyprland-stubs.lua)\n` +
+                `- [Release notes](${release.html_url})\n\n` +
+                `## Changelog\n\n\`\`\`\n${changelog}\n\`\`\`\n\n` +
+                `## Action items\n\n` +
+                `- [ ] Verify all dispatch expressions in \`src/dispatch-expressions.ts\` against the new wiki\n` +
+                `- [ ] Run \`scripts/test-flagged-dispatchers.sh\` against the new release\n` +
+                `- [ ] Update README/SKILL.md version references if needed\n` +
+                `- [ ] Check hyprsunset/hyprpaper/hyprlock/hypridle/hyprpicker for IPC changes`,
+              labels: ['hyprland-release', 'needs-review'],
+            });
+            console.log(`Created issue for ${latestTag}`);
