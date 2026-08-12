@@ -1,5 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { isProcessRunning, sendSignal, spawnDetached } from "../procs.js";
+import { evalLua } from "../hyprctl.js";
+import { clearCrashedLockscreenExpr } from "../dispatch-expressions.js";
 
 function text(payload: unknown) {
   return {
@@ -70,6 +72,20 @@ export function registerHyprlockTools(server: McpServer) {
     async () => {
       const locked = await isProcessRunning("hyprlock");
       return text(locked ? "Screen is locked." : "Screen is not locked.");
+    },
+  );
+
+  server.tool(
+    "clear_crashed_lockscreen",
+    "Clear a crashed lockscreen that won't go away (Hyprland 0.56+ only). When hyprlock " +
+      "crashes or gets stuck, the session can be left in a state where the lock screen " +
+      "persists even though no hyprlock process is running — this calls hl.clear_crashed_lockscreen(), " +
+      "added in Hyprland 0.56, which forces the compositor to release the lock-screen surface. " +
+      "Safe to call if the screen is locked but hyprlock isn't running (zombie lock screen).",
+    {},
+    async () => {
+      const out = await evalLua(clearCrashedLockscreenExpr());
+      return text(out || "Cleared crashed lockscreen surface");
     },
   );
 }

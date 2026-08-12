@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { dispatchLua } from "../hyprctl.js";
-import { moveCursorExpr, moveCursorToCornerExpr } from "../dispatch-expressions.js";
+import { moveCursorExpr, moveCursorToCornerExpr, focusDirectionExpr } from "../dispatch-expressions.js";
 
 function text(payload: unknown) {
   return {
@@ -44,6 +44,22 @@ export function registerCursorTools(server: McpServer) {
     async ({ corner, target }) => {
       const out = await dispatchLua(moveCursorToCornerExpr({ corner, target }));
       return text(out || `Moved cursor to corner ${corner}`);
+    },
+  );
+
+  server.tool(
+    "focus_direction",
+    "Move window focus in a cardinal direction (l=left, r=right, u=up, d=down). " +
+      "This is the programmatic equivalent of moving focus with arrow-key/window-hopping keybinds. " +
+      "Confirmed: hl.dsp.focus({ direction = 'l' }).",
+    {
+      direction: z
+        .enum(["l", "r", "u", "d"])
+        .describe("Direction to move focus: l (left), r (right), u (up), d (down)"),
+    },
+    async ({ direction }) => {
+      const out = await dispatchLua(focusDirectionExpr(direction));
+      return text(out || `Focused window in direction ${direction}`);
     },
   );
 }

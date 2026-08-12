@@ -5,6 +5,8 @@ import {
   toggleGroupExpr,
   groupCycleExpr,
   toggleGroupLockExpr,
+  groupActiveWindowExpr,
+  moveGroupWindowExpr,
   denyWindowFromGroupExpr,
 } from "../dispatch-expressions.js";
 
@@ -70,6 +72,49 @@ export function registerGroupTools(server: McpServer) {
     async ({ target }) => {
       const out = await dispatchLua(denyWindowFromGroupExpr(target));
       return text(out || "Toggled deny-from-group on window");
+    },
+  );
+
+  server.tool(
+    "group_active_window",
+    "Switch to a specific window within the active group by its index (0-based). " +
+      "If the window isn't in a group, this is a no-op.",
+    {
+      index: z
+        .number()
+        .int()
+        .min(0)
+        .describe("Zero-based index of the target window within the group"),
+      target: z
+        .string()
+        .optional()
+        .describe("Window address or selector; omit for active window"),
+    },
+    async ({ index, target }) => {
+      const out = await dispatchLua(groupActiveWindowExpr({ index, target }));
+      return text(out || `Switched to group window at index ${index}`);
+    },
+  );
+
+  server.tool(
+    "move_window_in_group",
+    "Move a window forward or backward within its group's tab order. Forward moves it " +
+      "toward the front (most-recently-focused), backward toward the back.",
+    {
+      forward: z
+        .boolean()
+        .optional()
+        .describe("true (default) to move forward/backward in the group tab order"),
+      target: z
+        .string()
+        .optional()
+        .describe("Window address or selector; omit for active window"),
+    },
+    async ({ forward, target }) => {
+      const out = await dispatchLua(moveGroupWindowExpr({ forward, target }));
+      return text(
+        out || `Moved window ${forward !== false ? "forward" : "backward"} in group`,
+      );
     },
   );
 }

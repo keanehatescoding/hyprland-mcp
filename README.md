@@ -10,10 +10,13 @@ it only works when launched **inside your Hyprland session** (or with
 ## Tools
 
 - **Windows**: `list_windows`, `get_active_window`, `focus_window`, `close_window`,
-  `kill_active_window`, `move_window_to_workspace`, `move_active_window`,
-  `resize_active_window`, `toggle_floating`, `toggle_fullscreen`, `pin_window`
+  `kill_active_window`, `kill_window`, `send_window_signal`, `move_window_to_workspace`,
+  `move_active_window`, `resize_active_window`, `toggle_floating`, `toggle_pseudo_tiled`,
+  `toggle_fullscreen`, `set_fullscreen_state`, `pin_window`, `bring_window_to_top`,
+  `center_window`, `cycle_next_window`, `swap_window`, `alter_z_order`, `toggle_swallow`
 - **Workspaces**: `list_workspaces`, `get_active_workspace`, `switch_workspace`,
-  `move_workspace_to_monitor`, `rename_workspace`
+  `move_workspace_to_monitor`, `rename_workspace`, `toggle_special_workspace`,
+  `change_workspace_id`, `swap_monitor_workspaces`
 - **Monitors**: `list_monitors`, `focus_monitor`, `set_monitor_config`
 - **Config**: `get_config_option`, `set_config_option`, `reload_hyprland_config`,
   `get_hyprland_version`
@@ -24,16 +27,18 @@ it only works when launched **inside your Hyprland session** (or with
 - **App launcher**: `toggle_launcher`, `prewarm_launcher_daemon` (controls
   [hyprlauncher](https://github.com/hyprwm/hyprlauncher), Hyprland's first-party
   app picker — a self-toggling daemon, not a hyprctl dispatcher)
-- **Tags**: `tag_window`
+- **Tags**: `tag_window`, `clear_window_tags`
 - **Groups (tabbed containers)**: `toggle_group`, `group_cycle`, `toggle_group_lock`,
-  `deny_window_from_group`
-- **Cursor**: `move_cursor`, `move_cursor_to_corner`
+  `deny_window_from_group`, `group_active_window`, `move_window_in_group`
+- **Cursor**: `move_cursor`, `move_cursor_to_corner`, `focus_direction`
+- **System**: `set_submap`, `exec_raw`, `exec_cmd`, `toggle_dpms`, `layout_message`,
+  `list_instances`, `exit_hyprland`
 - **hyprsunset (blue light filter)**: `set_sunset_temperature`, `disable_sunset_filter`,
   `set_sunset_gamma`, `reset_sunset`, `get_sunset_profile`
 - **hyprpaper (wallpaper)**: `set_wallpaper`, `list_active_wallpapers`
 - **hypridle (idle management)**: `start_hypridle`, `stop_hypridle`, `get_hypridle_status`
 - **hyprlock (screen lock)**: `lock_screen`, `unlock_screen`, `refresh_lockscreen`,
-  `get_lock_status`
+  `get_lock_status`, `clear_crashed_lockscreen`
 - **hyprpicker (color picker)**: `pick_color`
 - **Escape hatches**: `hyprland_dispatch` (any `hyprctl dispatch <dispatcher>`),
   `hyprctl_raw` (any raw `hyprctl` subcommand)
@@ -100,7 +105,7 @@ Hyprland 0.55 replaced hyprlang config with a Lua-based one, and — independent
 which config format *your own* hyprland.conf/.lua uses — the running 0.55+ binary
 now parses `hyprctl dispatch <arg>` as a single Lua expression rather than the old
 `<dispatcher-name> <args>` positional form. `hyprctl dispatch workspace 3` will error
-on 0.55+; the equivalent is `hyprctl dispatch 'hl.dsp.workspace.change({workspace=3})'`.
+on 0.55+; the equivalent is `hyprctl dispatch 'hl.dsp.focus({workspace=3})'`.
 
 This project targets that new syntax throughout (`src/hyprctl.ts` has `luaCall()` /
 `dispatchLua()` / `evalLua()` helpers; `src/dispatch-expressions.ts` holds every
@@ -117,12 +122,15 @@ by real testing against Hyprland 0.55.4 (see `scripts/test-flagged-dispatchers*.
 > (a working example, a dated GitHub PR/issue, multiple converging sources) as
 > "probably true for the latest release, not guaranteed."
 
-- **Confirmed against the wiki, a working example, or a real 0.55.4 session**:
-  `hl.dsp.focus` (including `{ monitor = ... }`), `hl.dsp.window.{close,kill,move,
-  resize,float,fullscreen,tag,deny_from_group,pin}`, `hl.dsp.workspace.{change,
-  rename,move_to_monitor,toggle_special}`, `hl.dsp.group.{toggle,next,prev,lock}`,
-  `hl.dsp.cursor.{move,move_to_corner}`, `hl.dsp.exec_cmd`, `hl.dsp.submap`,
-  `hl.dsp.pass`, `hl.dsp.send_shortcut`.
+- **Confirmed against the wiki, a working example, or a real 0.55.4/0.56.2 session**:
+  `hl.dsp.focus` (including `{ monitor = ... }`, `{ direction = ... }`,
+  `{ workspace = ... }`), `hl.dsp.window.{close,kill,move,resize,float,fullscreen,
+  tag,deny_from_group,pin,center,cycle_next,swap,alter_zorder,clear_tags,signal,
+  pseudo,bring_to_top,toggle_swallow}`, `hl.dsp.workspace.{move,rename,
+  toggle_special,change_id,swap_monitors}`, `hl.dsp.group.{toggle,next,prev,
+  lock,active,move_window}`, `hl.dsp.cursor.{move,move_to_corner}`,
+  `hl.dsp.{exec_cmd,exec_raw,submap,dpms,exit,layout}`,
+  `hl.clear_crashed_lockscreen()`.
   `window.pin()` specifically: confirmed by a *semantic* rejection ("Window does not
   qualify to be pinned" — Hyprland's own pin logic rejecting a non-floating window)
   rather than the "attempt to call a nil value" error a wrong path produces, which
@@ -153,12 +161,38 @@ month, with dispatcher-behavior bugfixes in each). If something that used to wor
 here breaks after a Hyprland update, check the dispatcher's current signature on
 the wiki before assuming the MCP server itself regressed.
 
-**Real-session testing status (Hyprland 0.55.4, as of this writing):** every
+### Hyprland 0.56 update notes
+
+Hyprland 0.56.0 ("No breaking changes! :)") added several new dispatchers and
+**fixed a latent bug in this project**: two dispatch expressions used Lua paths
+that never actually existed (`hl.dsp.workspace.change` and
+`hl.dsp.workspace.move_to_monitor`), producing silent failures on real sessions.
+This was discovered by testing against 0.56.2 and is now corrected:
+
+| What changed | Before (broken) | After (correct, confirmed on 0.56.2) |
+|---|---|---|
+| Switch workspace | `hl.dsp.workspace.change({ workspace })` | `hl.dsp.focus({ workspace })` |
+| Move workspace→monitor | `hl.dsp.workspace.move_to_monitor(...)` | `hl.dsp.workspace.move({ workspace, monitor })` |
+| Move window w/o focus | `silent = true` param | `follow = false` param |
+| Fullscreen mode | `mode = 0` / `mode = 1` (numeric) | `mode = "fullscreen"` / `mode = "maximized"` (strings) |
+| Pin window | `hl.dsp.window.pin()` (no-arg only) | `hl.dsp.window.pin({ action?, window? })` |
+| Hyprsunset `reset`/`profile` | flagged as broken (v0.3.3 bug) | **works** on 0.56 — bug warnings removed |
+
+New dispatchers added as dedicated tools (all confirmed against the 0.56 wiki
+and the Lua stubs at `/usr/share/hypr/stubs/hl.meta.lua`):
+`clear_tags`, `signal`, `pseudo`, `bring_to_top`, `center`, `cycle_next`,
+`swap`, `toggle_swallow`, `change_id`, `swap_monitors`, `group.active`,
+`group.move_window`, `submap`, `exec_raw`, `dpms`, `exit`, `focus({ direction })`,
+and `hl.clear_crashed_lockscreen()` (Hyprland 0.56+).
+
+**Real-session testing status (Hyprland 0.56.2, as of this writing):** every
 dispatch-based tool is confirmed correct, and the non-Lua tools (`notify`/
 `dismissnotify`, `hyprsunset`, `hyprpaper`) are confirmed working end-to-end via
 `scripts/test-notify-sunset-paper.sh` — notification create/dismiss, temperature/
-gamma/identity, and `listactive` all behaved as expected on a real session. Every
-tool in this project has now been verified against a real Hyprland instance.
+gamma/identity, and `listactive` all behaved as expected on a real session. The
+dispatcher fixes and new tools were verified with `hyprctl dispatch` against a live
+0.56.2 session (see `scripts/test-flagged-dispatchers.sh` and
+`scripts/test-flagged-dispatchers-round2.sh`).
 
 ## Testing
 
@@ -182,8 +216,13 @@ It already caught one real bug during development: `denyWindowFromGroupExpr()`
 with no target was emitting `hl.dsp.window.deny_from_group({  })` (an empty table)
 instead of a clean `()`, because the builder always passed an args object even when
 every key in it was `undefined`. Worth knowing if you add a new builder where a
-target/selector is the *only* possible key — build the whole args object
-conditionally rather than relying on `luaCall`'s undefined-key filtering to save you.
+target/selector is the *only* possible key — `luaCall()` in `src/hyprctl.ts` now
+auto-detects all-`undefined` objects and collapses them to a bare `path()` call,
+but it's still good practice to build the whole args object conditionally for
+non-obvious cases. A similar `luaCall` improvement (auto-collapsing empty tables to
+bare `()`) also fixed the same edge case for `clearWindowTagsExpr`, `bringWindowToTopExpr`,
+`centerWindowExpr`, `cycleNextWindowExpr`, and `moveGroupWindowExpr` when called
+without targets.
 
 ## Security note: `unlock_screen`
 

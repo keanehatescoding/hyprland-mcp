@@ -1,12 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { dispatchLua, runHyprctlJson, HyprWorkspace } from "../hyprctl.js";
-import {
-  switchWorkspaceExpr,
-  moveWorkspaceToMonitorExpr,
-  renameWorkspaceExpr,
-  toggleSpecialWorkspaceExpr,
-} from "../dispatch-expressions.js";
+import { switchWorkspaceExpr, moveWorkspaceToMonitorExpr, renameWorkspaceExpr, toggleSpecialWorkspaceExpr, changeWorkspaceIdExpr, swapMonitorWorkspacesExpr } from "../dispatch-expressions.js";
 
 function text(payload: unknown) {
   return {
@@ -92,6 +87,49 @@ export function registerWorkspaceTools(server: McpServer) {
     async ({ name }) => {
       const out = await dispatchLua(toggleSpecialWorkspaceExpr(name));
       return text(out || `Toggled special workspace '${name}'`);
+    },
+  );
+
+  server.tool(
+    "change_workspace_id",
+    "Change a workspace's numeric ID. The workspace keeps all its windows, monitor, and " +
+      "settings — only the number changes. Useful for normalizing workspace numbering or " +
+      "fixing collisions after workspace rules. The new ID must not already be in use and must be > 0.",
+    {
+      workspace: z
+        .number()
+        .int()
+        .positive()
+        .describe("Current workspace ID to rename (e.g. 1, 2, 3)"),
+      new_id: z
+        .number()
+        .int()
+        .positive()
+        .describe("New workspace ID to assign (must not be in use, must be > 0)"),
+    },
+    async ({ workspace, new_id }) => {
+      const out = await dispatchLua(changeWorkspaceIdExpr({ workspace, id: new_id }));
+      return text(out || `Changed workspace ${workspace} to ID ${new_id}`);
+    },
+  );
+
+  server.tool(
+    "swap_monitor_workspaces",
+    "Swap the workspaces currently shown on two monitors. A convenience over " +
+      "individually moving each workspace — swaps the active workspaces between two monitors.",
+    {
+      monitor1: z
+        .union([z.number(), z.string()])
+        .describe("First monitor (id or name, e.g. 0 or 'DP-1')"),
+      monitor2: z
+        .union([z.number(), z.string()])
+        .describe("Second monitor (id or name, e.g. 1 or 'HDMI-A-1')"),
+    },
+    async ({ monitor1, monitor2 }) => {
+      const out = await dispatchLua(
+        swapMonitorWorkspacesExpr({ monitor1, monitor2 }),
+      );
+      return text(out || `Swapped workspaces on monitors ${monitor1} and ${monitor2}`);
     },
   );
 }

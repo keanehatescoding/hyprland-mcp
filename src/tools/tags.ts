@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { dispatchLua } from "../hyprctl.js";
-import { tagWindowExpr } from "../dispatch-expressions.js";
+import { tagWindowExpr, clearWindowTagsExpr } from "../dispatch-expressions.js";
 
 function text(payload: unknown) {
   return {
@@ -35,6 +35,22 @@ export function registerTagTools(server: McpServer) {
     async ({ tag, target }) => {
       const out = await dispatchLua(tagWindowExpr({ tag, target }));
       return text(out || `Applied tag '${tag}'${target ? ` to ${target}` : ""}`);
+    },
+  );
+
+  server.tool(
+    "clear_window_tags",
+    "Remove ALL tags from a window. This is the bulk-clear counterpart to tag_window — " +
+      "use it when you want to start fresh rather than specifying each tag to remove.",
+    {
+      target: z
+        .string()
+        .optional()
+        .describe("Window address or selector; omit for the currently active window"),
+    },
+    async ({ target }) => {
+      const out = await dispatchLua(clearWindowTagsExpr(target));
+      return text(out || `Cleared all tags from window ${target ?? "active"}`);
     },
   );
 }

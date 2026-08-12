@@ -26,21 +26,22 @@ rather than trying alternate arguments.
 
 | Category | Tools | Use for |
 |---|---|---|
-| Windows | `list_windows`, `get_active_window`, `focus_window`, `close_window`, `kill_active_window`, `move_window_to_workspace`, `move_active_window`, `resize_active_window`, `toggle_floating`, `toggle_fullscreen`, `pin_window` | Per-window inspection/manipulation |
-| Workspaces | `list_workspaces`, `get_active_workspace`, `switch_workspace`, `move_workspace_to_monitor`, `rename_workspace`, `toggle_special_workspace` | Workspace-level ops incl. scratchpad |
+| Windows | `list_windows`, `get_active_window`, `focus_window`, `close_window`, `kill_active_window`, `kill_window`, `send_window_signal`, `move_window_to_workspace`, `move_active_window`, `resize_active_window`, `toggle_floating`, `toggle_pseudo_tiled`, `toggle_fullscreen`, `set_fullscreen_state`, `pin_window`, `bring_window_to_top`, `center_window`, `cycle_next_window`, `swap_window`, `alter_z_order`, `toggle_swallow` | Per-window inspection/manipulation |
+| Workspaces | `list_workspaces`, `get_active_workspace`, `switch_workspace`, `move_workspace_to_monitor`, `rename_workspace`, `toggle_special_workspace`, `change_workspace_id`, `swap_monitor_workspaces` | Workspace-level ops incl. scratchpad |
 | Monitors | `list_monitors`, `focus_monitor`, `set_monitor_config` | Output layout/resolution/scale |
 | Config | `get_config_option`, `set_config_option`, `reload_hyprland_config`, `get_hyprland_version` | Reading/tweaking hyprland.conf values live |
 | Keybinds | `list_keybinds` | Auditing/searching existing binds |
 | Notifications | `send_notification`, `dismiss_notifications` | Desktop notifications or on-screen overlay |
 | Screenshots | `take_screenshot`, `take_region_screenshot`, `screenshot_active_window` | Visual capture |
 | Launcher | `toggle_launcher`, `prewarm_launcher_daemon` | hyprlauncher, the first-party app picker |
-| Tags | `tag_window` | Static window tags for use in window rules |
-| Groups | `toggle_group`, `group_cycle`, `toggle_group_lock`, `deny_window_from_group` | Tabbed-container windows |
-| Cursor | `move_cursor`, `move_cursor_to_corner` | Programmatic cursor placement |
+| Tags | `tag_window`, `clear_window_tags` | Static window tags for use in window rules |
+| Groups | `toggle_group`, `group_cycle`, `toggle_group_lock`, `deny_window_from_group`, `group_active_window`, `move_window_in_group` | Tabbed-container windows |
+| Cursor | `move_cursor`, `move_cursor_to_corner`, `focus_direction` | Programmatic cursor placement |
+| System | `set_submap`, `exec_raw`, `exec_cmd`, `toggle_dpms`, `layout_message`, `list_instances`, `exit_hyprland` | General dispatchers, hyprctl subcommands |
 | hyprsunset | `set_sunset_temperature`, `disable_sunset_filter`, `set_sunset_gamma`, `reset_sunset`, `get_sunset_profile` | Blue-light filter / gamma, own `hyprctl hyprsunset` family, not Lua |
 | hyprpaper | `set_wallpaper`, `list_active_wallpapers` | Wallpaper daemon, own `hyprctl hyprpaper` family, not Lua |
 | hypridle | `start_hypridle`, `stop_hypridle`, `get_hypridle_status` | Idle daemon — NO hyprctl/IPC surface, process control only |
-| hyprlock | `lock_screen`, `unlock_screen`, `refresh_lockscreen`, `get_lock_status` | Screen lock — NO hyprctl/IPC surface, process signals only |
+| hyprlock | `lock_screen`, `unlock_screen`, `refresh_lockscreen`, `get_lock_status`, `clear_crashed_lockscreen` | Screen lock — NO hyprctl/IPC surface, process signals only |
 | hyprpicker | `pick_color` | Blocking foreground CLI — no daemon, no hyprctl |
 | Escape hatches | `hyprland_dispatch`, `hyprctl_raw` | Anything not covered above |
 
@@ -123,9 +124,10 @@ A few dispatchers have argument conventions that aren't obvious from the name al
   absolute position/size or `mode: "relative"` for a pixel delta from the current
   position/size. Under the hood this becomes `exact x y` vs `x y` for
   `moveactive`/`resizeactive` — don't try to pass `exact` yourself inside a raw string.
-- **`move_window_to_workspace`**: `silent: true` moves the window without switching
-  the visible workspace (`movetoworkspacesilent`); omit `target` to act on the
-  currently focused window rather than passing something like `"active"`.
+- **`move_window_to_workspace`**: `follow: false` moves the window without switching
+  the visible workspace (the 0.55+ Lua equivalent of the old `silent` param — the
+  parameter is named `follow`, not `silent`; `follow` defaults to true). Omit `target`
+  to act on the currently focused window rather than passing something like `"active"`.
 - **`set_monitor_config`**: takes the exact same comma-separated syntax as a
   `monitor=` line in `hyprland.conf` (e.g. `DP-1,1920x1080@144,0x0,1` or
   `HDMI-A-1,disable`), not separate width/height/position fields.
@@ -161,11 +163,12 @@ with no dedicated wrapper (e.g. `cyclenext`, `swapwindow`, `layoutmsg`, `submap`
 `togglespecialworkspace`, `centerwindow`, `exec` to launch an app) — pass the
 dispatcher name and a raw argument string exactly as `hyprctl dispatch` would expect
 it. Reach for `hyprctl_raw` for non-dispatch subcommands not wrapped elsewhere (e.g.
-`splash`, `layers`, `devices`, `systeminfo`); pass `-j` as the first array element
-yourself if structured output is wanted.
+`splash`, `layers`, `devices`, `systeminfo`, `globalshortcuts`, `instances`); pass
+`-j` as the first array element yourself if structured output is wanted.
 
 If Hyprland's dispatcher/subcommand list has changed since this was written, check
-`hyprctl dispatch --help` or https://wiki.hyprland.org rather than guessing syntax.
+`hyprctl dispatch --help` or https://wiki.hypr.land/Configuring/Basics/Dispatchers/
+rather than guessing syntax.
 
 ## hyprlauncher: not a dispatcher
 
@@ -184,12 +187,9 @@ they're each their own `hyprctl <name> <args>` subcommand family (`hyprctl
 hyprsunset ...`, `hyprctl hyprpaper ...`), same category as `keyword`/`getoption`,
 so none of the 0.55 Lua-dispatch caveats above apply to them.
 
-- **hyprsunset**: `reset_sunset` and `get_sunset_profile` specifically are flagged
-  in their tool descriptions as reported broken (`invalid command`) on hyprsunset
-  v0.3.3 via a Hyprland forum bug report — `temperature`/`identity`/`gamma` are
-  unaffected. If `reset_sunset` errors, there's no clean workaround; fall back to
-  calling `set_sunset_temperature`/`set_sunset_gamma`/`disable_sunset_filter` with
-  the values the user's profile should have at the current time.
+- **hyprsunset**: all five commands (`temperature`, `identity`/`disable_sunset_filter`,
+  `gamma`, `reset_sunset`, `get_sunset_profile`) work correctly on Hyprland 0.56+
+  (the v0.3.3 bug on `reset`/`profile` is fixed — bug warnings removed).
 - **hyprpaper**: only `wallpaper` and `listactive` are wrapped as dedicated tools,
   matching what the current Hyprland wiki documents. Older tutorials mention
   `preload`/`reload`/`unload`/`listloaded`, but the wiki itself now says these may
@@ -224,13 +224,14 @@ request's framing suggests someone other than the session owner is asking.
 - "Move this window to workspace 3" → `move_window_to_workspace` with no `target`
   (acts on active window)
 - "Send Firefox to workspace 2 without switching to it" → `move_window_to_workspace`
-  with `target: "class:^(firefox)$"`, `silent: true`
+  with `target: "class:^(firefox)$"`, `follow: false`
 - "Put my monitor at 144Hz" → `list_monitors` first to get the exact output name, then
   `set_monitor_config`
 - "Screenshot this window" → `screenshot_active_window`
 - "Let me grab a screenshot of part of my screen" → `take_region_screenshot`
 - "What are my gaps set to?" → `get_config_option` with `"general:gaps_in"`
-- "Cycle to the next window" → `hyprland_dispatch` with `dispatcher: "cyclenext"`
+- "Cycle to the next window" → `cycle_next_window` (or `hyprland_dispatch` with
+  `raw_expression: "hl.dsp.window.cycle_next()"`)
 - "Open the app launcher" / "let me search for an app" → `toggle_launcher`
 - "Show/hide my scratchpad terminal" → `toggle_special_workspace` with `name`
   matching what you moved the window into via `move_window_to_workspace`
@@ -238,8 +239,12 @@ request's framing suggests someone other than the session owner is asking.
 - "Tab these windows together" → `toggle_group` (call it on the window you want to
   become the group anchor, then move other windows into the same tiled slot)
 - "Tag this as a 'code' window" → `tag_window` with `tag: "+code"`
+- "Remove all tags from this window" → `clear_window_tags`
+- "Send SIGTERM to a window's process" → `send_window_signal` with `signal: 15`
+  (or `15` for SIGTERM, `9` for SIGKILL, `10` for SIGUSR1)
 - "Turn on night mode / warm up my screen" → `set_sunset_temperature` (e.g. 3000)
 - "Change my wallpaper" → `set_wallpaper` (ask which monitor if they have more than one)
 - "Don't let my screen lock while I'm watching this" → `stop_hypridle`
 - "Lock my screen" → `lock_screen`
+- "Clear a crashed/hung lockscreen" → `clear_crashed_lockscreen` (Hyprland 0.56+)
 - "What color is this?" / "grab this color for me" → `pick_color`

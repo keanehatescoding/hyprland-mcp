@@ -19,6 +19,7 @@ import { registerHyprpaperTools } from "./tools/hyprpaper.js";
 import { registerHypridleTools } from "./tools/hypridle.js";
 import { registerHyprlockTools } from "./tools/hyprlock.js";
 import { registerHyprpickerTools } from "./tools/hyprpicker.js";
+import { registerSystemTools } from "./tools/system.js";
 
 const server = new McpServer({
   name: "hyprland-mcp",
@@ -42,6 +43,7 @@ registerHyprpaperTools(server);
 registerHypridleTools(server);
 registerHyprlockTools(server);
 registerHyprpickerTools(server);
+registerSystemTools(server);
 
 async function main() {
   const transport = new StdioServerTransport();

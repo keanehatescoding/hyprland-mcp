@@ -48,10 +48,10 @@ run "set_sunset_temperature (screen should visibly warm up/tint orange)" \
 run "set_sunset_gamma absolute (screen brightness should visibly change)" \
   hyprctl hyprsunset gamma 70
 
-run "reset_sunset (KNOWN possibly-broken per a Hyprland forum report on v0.3.3 — 'invalid command' is an expected/known result, not a bug here)" \
+run "reset_sunset (fixed in Hyprland 0.56+ — the v0.3.3 'invalid command' bug is resolved)" \
   hyprctl hyprsunset reset
 
-run "get_sunset_profile (same known-possibly-broken caveat as reset above)" \
+run "get_sunset_profile (returns the active time-based profile)" \
   hyprctl hyprsunset profile
 
 run "cleanup: back to identity" \

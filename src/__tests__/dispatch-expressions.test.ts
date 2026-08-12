@@ -4,27 +4,56 @@ import assert from "node:assert/strict";
 import { toLuaValue, luaCall } from "../hyprctl.js";
 import {
   selectorFor,
+  // windows
   focusWindowExpr,
   closeWindowExpr,
   killActiveWindowExpr,
+  killWindowExpr,
+  sendWindowSignalExpr,
   moveWindowToWorkspaceExpr,
   moveActiveWindowExpr,
   resizeActiveWindowExpr,
   toggleFloatingExpr,
+  togglePseudoTiledExpr,
   toggleFullscreenExpr,
+  setFullscreenStateExpr,
   pinWindowExpr,
+  bringWindowToTopExpr,
+  centerWindowExpr,
+  cycleNextWindowExpr,
+  swapWindowExpr,
+  alterZOrderExpr,
+  tagWindowExpr,
+  clearWindowTagsExpr,
+  toggleSwallowExpr,
+  // workspaces
   switchWorkspaceExpr,
   moveWorkspaceToMonitorExpr,
   renameWorkspaceExpr,
   toggleSpecialWorkspaceExpr,
+  changeWorkspaceIdExpr,
+  swapMonitorWorkspacesExpr,
+  // monitors
   focusMonitorExpr,
-  tagWindowExpr,
+  focusDirectionExpr,
+  // groups
   toggleGroupExpr,
   groupCycleExpr,
   toggleGroupLockExpr,
+  groupActiveWindowExpr,
+  moveGroupWindowExpr,
   denyWindowFromGroupExpr,
+  // cursor
   moveCursorExpr,
   moveCursorToCornerExpr,
+  // general
+  setSubmapExpr,
+  execRawExpr,
+  execCmdExpr,
+  exitHyprlandExpr,
+  dpmsExpr,
+  layoutMessageExpr,
+  clearCrashedLockscreenExpr,
 } from "../dispatch-expressions.js";
 
 describe("toLuaValue / luaCall primitives", () => {
@@ -90,17 +119,49 @@ describe("window dispatch expressions", () => {
     assert.equal(killActiveWindowExpr(), "hl.dsp.window.kill()");
   });
 
-  test("moveWindowToWorkspaceExpr omits window/silent when not given", () => {
+  test("killWindowExpr with target", () => {
+    assert.equal(
+      killWindowExpr("0xabc"),
+      'hl.dsp.window.kill({ window = "address:0xabc" })',
+    );
+  });
+
+  test("killWindowExpr without target", () => {
+    assert.equal(killWindowExpr(), "hl.dsp.window.kill()");
+  });
+
+  test("sendWindowSignalExpr with numeric signal", () => {
+    assert.equal(
+      sendWindowSignalExpr({ signal: 9 }),
+      "hl.dsp.window.signal({ signal = 9 })",
+    );
+  });
+
+  test("sendWindowSignalExpr with signal and target", () => {
+    assert.equal(
+      sendWindowSignalExpr({ signal: 15, target: "0xabc" }),
+      'hl.dsp.window.signal({ signal = 15, window = "address:0xabc" })',
+    );
+  });
+
+  test("moveWindowToWorkspaceExpr omits window/follow when not given", () => {
     assert.equal(
       moveWindowToWorkspaceExpr({ workspace: 3 }),
       "hl.dsp.window.move({ workspace = 3 })",
     );
   });
 
-  test("moveWindowToWorkspaceExpr includes target and silent when given", () => {
+  test("moveWindowToWorkspaceExpr includes target and follow when given", () => {
     assert.equal(
-      moveWindowToWorkspaceExpr({ workspace: "special:scratch", target: "0xabc", silent: true }),
-      'hl.dsp.window.move({ workspace = "special:scratch", window = "address:0xabc", silent = true })',
+      moveWindowToWorkspaceExpr({ workspace: "special:scratch", target: "0xabc", follow: false }),
+      'hl.dsp.window.move({ workspace = "special:scratch", window = "address:0xabc", follow = false })',
+    );
+  });
+
+  test("moveWindowToWorkspaceExpr omits follow when undefined (defaults to Hyprland's true)", () => {
+    assert.equal(
+      moveWindowToWorkspaceExpr({ workspace: 2, target: "class:kitty" }),
+      'hl.dsp.window.move({ workspace = 2, window = "class:kitty" })',
     );
   });
 
@@ -136,33 +197,177 @@ describe("window dispatch expressions", () => {
     );
   });
 
-  test("toggleFullscreenExpr defaults to mode 0 (real fullscreen)", () => {
-    assert.equal(toggleFullscreenExpr(), "hl.dsp.window.fullscreen({ mode = 0 })");
-    assert.equal(toggleFullscreenExpr("full"), "hl.dsp.window.fullscreen({ mode = 0 })");
+  test("togglePseudoTiledExpr with no args", () => {
+    assert.equal(togglePseudoTiledExpr(), 'hl.dsp.window.pseudo({ action = "toggle" })');
   });
 
-  test("toggleFullscreenExpr maps 'maximize' to mode 1", () => {
-    assert.equal(toggleFullscreenExpr("maximize"), "hl.dsp.window.fullscreen({ mode = 1 })");
+  test("togglePseudoTiledExpr with action and target", () => {
+    assert.equal(
+      togglePseudoTiledExpr({ action: "enable", target: "0x123" }),
+      'hl.dsp.window.pseudo({ action = "enable", window = "address:0x123" })',
+    );
   });
 
-  test("pinWindowExpr", () => {
+  test("toggleFullscreenExpr defaults to mode 'fullscreen' (real fullscreen)", () => {
+    assert.equal(
+      toggleFullscreenExpr(),
+      'hl.dsp.window.fullscreen({ mode = "fullscreen" })',
+    );
+    assert.equal(
+      toggleFullscreenExpr({}),
+      'hl.dsp.window.fullscreen({ mode = "fullscreen" })',
+    );
+  });
+
+  test("toggleFullscreenExpr maps 'maximize' to mode 'maximized'", () => {
+    assert.equal(
+      toggleFullscreenExpr({ mode: "maximize" }),
+      'hl.dsp.window.fullscreen({ mode = "maximized" })',
+    );
+  });
+
+  test("toggleFullscreenExpr with full params", () => {
+    assert.equal(
+      toggleFullscreenExpr({ mode: "full", action: "set", layout_aware: true, target: "0xabc" }),
+      'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "set", layout_aware = true, window = "address:0xabc" })',
+    );
+  });
+
+  test("setFullscreenStateExpr", () => {
+    assert.equal(
+      setFullscreenStateExpr({ internal: true, client: false, action: "set", target: "0x1" }),
+      'hl.dsp.window.fullscreen_state({ internal = true, client = false, action = "set", window = "address:0x1" })',
+    );
+  });
+
+  test("setFullscreenStateExpr without optional params", () => {
+    assert.equal(
+      setFullscreenStateExpr({ internal: false, client: true }),
+      "hl.dsp.window.fullscreen_state({ internal = false, client = true })",
+    );
+  });
+
+  test("pinWindowExpr no args", () => {
     assert.equal(pinWindowExpr(), "hl.dsp.window.pin()");
+  });
+
+  test("pinWindowExpr with action", () => {
+    assert.equal(
+      pinWindowExpr({ action: "toggle" }),
+      'hl.dsp.window.pin({ action = "toggle" })',
+    );
+  });
+
+  test("pinWindowExpr with target", () => {
+    assert.equal(
+      pinWindowExpr({ target: "0xdead" }),
+      'hl.dsp.window.pin({ window = "address:0xdead" })',
+    );
+  });
+
+  test("bringWindowToTopExpr with no target", () => {
+    assert.equal(bringWindowToTopExpr(), "hl.dsp.window.bring_to_top()");
+  });
+
+  test("bringWindowToTopExpr with target", () => {
+    assert.equal(
+      bringWindowToTopExpr("class:kitty"),
+      'hl.dsp.window.bring_to_top({ window = "class:kitty" })',
+    );
+  });
+
+  test("centerWindowExpr with no target", () => {
+    assert.equal(centerWindowExpr(), "hl.dsp.window.center()");
+  });
+
+  test("centerWindowExpr with target", () => {
+    assert.equal(
+      centerWindowExpr("0x123"),
+      'hl.dsp.window.center({ window = "address:0x123" })',
+    );
+  });
+
+  test("cycleNextWindowExpr with no args", () => {
+    assert.equal(cycleNextWindowExpr(), "hl.dsp.window.cycle_next()");
+  });
+
+  test("cycleNextWindowExpr with all opts", () => {
+    assert.equal(
+      cycleNextWindowExpr({ next: true, tiled: true, floating: false, target: "0x1" }),
+      'hl.dsp.window.cycle_next({ next = true, tiled = true, floating = false, window = "address:0x1" })',
+    );
+  });
+
+  test("swapWindowExpr with direction", () => {
+    assert.equal(
+      swapWindowExpr({ direction: "l" }),
+      'hl.dsp.window.swap({ direction = "l" })',
+    );
+  });
+
+  test("swapWindowExpr with next", () => {
+    assert.equal(swapWindowExpr({ next: true }), "hl.dsp.window.swap({ next = true })");
+  });
+
+  test("swapWindowExpr with prev", () => {
+    assert.equal(swapWindowExpr({ prev: true }), "hl.dsp.window.swap({ prev = true })");
+  });
+
+  test("swapWindowExpr with target", () => {
+    assert.equal(
+      swapWindowExpr({ target: "0xabc" }),
+      'hl.dsp.window.swap({ target = "address:0xabc" })',
+    );
+  });
+
+  test("alterZOrderExpr", () => {
+    assert.equal(alterZOrderExpr({ mode: "top" }), 'hl.dsp.window.alter_zorder({ mode = "top" })');
+    assert.equal(
+      alterZOrderExpr({ mode: "bottom", target: "0x1" }),
+      'hl.dsp.window.alter_zorder({ mode = "bottom", window = "address:0x1" })',
+    );
+  });
+
+  test("tagWindowExpr without a target", () => {
+    assert.equal(tagWindowExpr({ tag: "+code" }), 'hl.dsp.window.tag({ tag = "+code" })');
+  });
+
+  test("tagWindowExpr with a class selector target (matches wiki example)", () => {
+    assert.equal(
+      tagWindowExpr({ tag: "+music", target: "class:Celluloid" }),
+      'hl.dsp.window.tag({ tag = "+music", window = "class:Celluloid" })',
+    );
+  });
+
+  test("clearWindowTagsExpr without target", () => {
+    assert.equal(clearWindowTagsExpr(), "hl.dsp.window.clear_tags()");
+  });
+
+  test("clearWindowTagsExpr with target", () => {
+    assert.equal(
+      clearWindowTagsExpr("0x123"),
+      'hl.dsp.window.clear_tags({ window = "address:0x123" })',
+    );
+  });
+
+  test("toggleSwallowExpr", () => {
+    assert.equal(toggleSwallowExpr(), "hl.dsp.window.toggle_swallow()");
   });
 });
 
 describe("workspace dispatch expressions", () => {
-  test("switchWorkspaceExpr with numeric id", () => {
-    assert.equal(switchWorkspaceExpr(3), "hl.dsp.workspace.change({ workspace = 3 })");
+  test("switchWorkspaceExpr uses hl.dsp.focus, not the non-existent workspace.change", () => {
+    assert.equal(switchWorkspaceExpr(3), "hl.dsp.focus({ workspace = 3 })");
   });
 
   test("switchWorkspaceExpr with relative selector string", () => {
-    assert.equal(switchWorkspaceExpr("e+1"), 'hl.dsp.workspace.change({ workspace = "e+1" })');
+    assert.equal(switchWorkspaceExpr("e+1"), 'hl.dsp.focus({ workspace = "e+1" })');
   });
 
-  test("moveWorkspaceToMonitorExpr", () => {
+  test("moveWorkspaceToMonitorExpr uses hl.dsp.workspace.move, not move_to_monitor", () => {
     assert.equal(
       moveWorkspaceToMonitorExpr({ workspace: 2, monitor: "DP-1" }),
-      'hl.dsp.workspace.move_to_monitor({ workspace = 2, monitor = "DP-1" })',
+      'hl.dsp.workspace.move({ workspace = 2, monitor = "DP-1" })',
     );
   });
 
@@ -176,6 +381,20 @@ describe("workspace dispatch expressions", () => {
   test("toggleSpecialWorkspaceExpr uses a bare string arg, not a table", () => {
     assert.equal(toggleSpecialWorkspaceExpr("magic"), 'hl.dsp.workspace.toggle_special("magic")');
   });
+
+  test("changeWorkspaceIdExpr", () => {
+    assert.equal(
+      changeWorkspaceIdExpr({ workspace: 1, id: 10 }),
+      "hl.dsp.workspace.change_id({ workspace = 1, id = 10 })",
+    );
+  });
+
+  test("swapMonitorWorkspacesExpr", () => {
+    assert.equal(
+      swapMonitorWorkspacesExpr({ monitor1: 0, monitor2: 1 }),
+      "hl.dsp.workspace.swap_monitors({ monitor1 = 0, monitor2 = 1 })",
+    );
+  });
 });
 
 describe("monitor dispatch expressions", () => {
@@ -183,18 +402,10 @@ describe("monitor dispatch expressions", () => {
     assert.equal(focusMonitorExpr("DP-1"), 'hl.dsp.focus({ monitor = "DP-1" })');
     assert.equal(focusMonitorExpr(0), "hl.dsp.focus({ monitor = 0 })");
   });
-});
 
-describe("tag dispatch expressions", () => {
-  test("tagWindowExpr without a target", () => {
-    assert.equal(tagWindowExpr({ tag: "+code" }), 'hl.dsp.window.tag({ tag = "+code" })');
-  });
-
-  test("tagWindowExpr with a class selector target (matches wiki example)", () => {
-    assert.equal(
-      tagWindowExpr({ tag: "+music", target: "class:Celluloid" }),
-      'hl.dsp.window.tag({ tag = "+music", window = "class:Celluloid" })',
-    );
+  test("focusDirectionExpr", () => {
+    assert.equal(focusDirectionExpr("l"), 'hl.dsp.focus({ direction = "l" })');
+    assert.equal(focusDirectionExpr("r"), 'hl.dsp.focus({ direction = "r" })');
   });
 });
 
@@ -210,6 +421,25 @@ describe("group dispatch expressions", () => {
 
   test("toggleGroupLockExpr", () => {
     assert.equal(toggleGroupLockExpr(), "hl.dsp.group.lock()");
+  });
+
+  test("groupActiveWindowExpr", () => {
+    assert.equal(
+      groupActiveWindowExpr({ index: 2 }),
+      "hl.dsp.group.active({ index = 2 })",
+    );
+    assert.equal(
+      groupActiveWindowExpr({ index: 0, target: "0xabc" }),
+      'hl.dsp.group.active({ index = 0, window = "address:0xabc" })',
+    );
+  });
+
+  test("moveGroupWindowExpr with no args", () => {
+    assert.equal(moveGroupWindowExpr(), "hl.dsp.group.move_window()");
+  });
+
+  test("moveGroupWindowExpr with forward", () => {
+    assert.equal(moveGroupWindowExpr({ forward: true }), "hl.dsp.group.move_window({ forward = true })");
   });
 
   test("denyWindowFromGroupExpr without a target", () => {
@@ -244,4 +474,51 @@ describe("cursor dispatch expressions", () => {
   });
 });
 
+describe("general dispatch expressions", () => {
+  test("setSubmapExpr uses bare string arg", () => {
+    assert.equal(setSubmapExpr("resize"), 'hl.dsp.submap("resize")');
+    assert.equal(setSubmapExpr("reset"), 'hl.dsp.submap("reset")');
+  });
 
+  test("execRawExpr uses bare string arg", () => {
+    assert.equal(execRawExpr("waybar"), 'hl.dsp.exec_raw("waybar")');
+  });
+
+  test("execCmdExpr without rules", () => {
+    assert.equal(execCmdExpr("firefox"), 'hl.dsp.exec_cmd("firefox")');
+  });
+
+  test("execCmdExpr with rules", () => {
+    assert.equal(
+      execCmdExpr("firefox", { title: "Firefox" }),
+      'hl.dsp.exec_cmd({ "firefox", { title = "Firefox" } })',
+    );
+  });
+
+  test("exitHyprlandExpr", () => {
+    assert.equal(exitHyprlandExpr(), "hl.dsp.exit()");
+  });
+
+  test("dpmsExpr with action only", () => {
+    assert.equal(dpmsExpr({ action: "off" }), 'hl.dsp.dpms({ action = "off" })');
+  });
+
+  test("dpmsExpr with monitor", () => {
+    assert.equal(
+      dpmsExpr({ action: "on", monitor: "DP-1" }),
+      'hl.dsp.dpms({ action = "on", monitor = "DP-1" })',
+    );
+  });
+
+  test("dpmsExpr with no args (toggle all)", () => {
+    assert.equal(dpmsExpr({}), "hl.dsp.dpms()");
+  });
+
+  test("layoutMessageExpr uses bare string arg", () => {
+    assert.equal(layoutMessageExpr("msg"), 'hl.dsp.layout("msg")');
+  });
+
+  test("clearCrashedLockscreenExpr", () => {
+    assert.equal(clearCrashedLockscreenExpr(), "hl.clear_crashed_lockscreen()");
+  });
+});

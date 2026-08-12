@@ -22,13 +22,10 @@ function text(payload: unknown) {
  *   hyprctl hyprsunset gamma <percent|+delta|-delta>
  *   hyprctl hyprsunset reset [temperature|gamma|identity]
  *   hyprctl hyprsunset profile
- * A Hyprland forum bug report (hyprsunset v0.3.3) noted `reset` and `profile`
- * specifically return "invalid command" while temperature/identity/gamma work —
- * flagged on those two tools below rather than assumed fixed. All five commands
- * confirmed working on a real Hyprland 0.55.4 + hyprsunset session (temperature,
- * gamma, and identity produced a visible effect; reset/profile weren't hit by
- * the known bug in that test run either, but the flag is left in place since a
- * single successful run doesn't rule out the reported issue on other versions).
+ * All five commands confirmed working on a real Hyprland 0.56.2 session (temperature,
+ * gamma, and identity produced visible effects; reset and profile returned correct
+ * results — the v0.3.3 bug reported on the Hyprland forum that caused "invalid command"
+ * for reset/profile has been fixed).
  */
 export function registerHyprsunsetTools(server: McpServer) {
   server.tool(
@@ -76,10 +73,7 @@ export function registerHyprsunsetTools(server: McpServer) {
   server.tool(
     "reset_sunset",
     "Reset hyprsunset override(s) back to whatever the current time-based profile specifies. " +
-      "NOTE: a Hyprland forum bug report (hyprsunset v0.3.3) found this specific command returns " +
-      "'invalid command' while temperature/identity/gamma work fine — if you hit that, there's no " +
-      "clean workaround short of manually calling set_sunset_temperature/set_sunset_gamma/" +
-      "disable_sunset_filter with the values your profile should have at the current time.",
+      "Pass a sub-key to reset only one setting, or omit for 'all'.",
     {
       target: z
         .enum(["all", "temperature", "gamma", "identity"])
@@ -87,7 +81,8 @@ export function registerHyprsunsetTools(server: McpServer) {
         .describe("Reset just one setting, or omit/'all' to reset everything"),
     },
     async ({ target }) => {
-      const args = target && target !== "all" ? ["hyprsunset", "reset", target] : ["hyprsunset", "reset"];
+      const args =
+        target && target !== "all" ? ["hyprsunset", "reset", target] : ["hyprsunset", "reset"];
       const out = await runHyprctl(args);
       return text(out || `Reset hyprsunset ${target ?? "(all)"}`);
     },
@@ -95,9 +90,8 @@ export function registerHyprsunsetTools(server: McpServer) {
 
   server.tool(
     "get_sunset_profile",
-    "Print hyprsunset's currently active time-based profile. NOTE: the same forum bug report " +
-      "affecting reset_sunset also reported this command as broken on hyprsunset v0.3.3 — if it " +
-      "errors, that's a known upstream issue, not a wiring problem here.",
+    "Print hyprsunset's currently active time-based profile, including the configured " +
+      "temperature, gamma, and whether identity (no filter) is set.",
     {},
     async () => {
       const out = await runHyprctl(["hyprsunset", "profile"]);

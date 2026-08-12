@@ -73,7 +73,8 @@ export async function dispatchLegacy(dispatcher: string, args: string = ""): Pro
 /**
  * Serialize a JS value into a Lua literal: strings, numbers, booleans, arrays -> Lua
  * arrays, and plain objects -> Lua tables with bare (unquoted) identifier keys.
- * `undefined` entries in objects are dropped rather than serialized.
+ * `undefined` entries in objects are dropped rather than serialized. An object whose
+ * only entries are undefined becomes a Lua table with no visible fields.
  */
 export function toLuaValue(value: unknown): string {
   if (value === undefined || value === null) return "nil";
@@ -90,12 +91,22 @@ export function toLuaValue(value: unknown): string {
   throw new HyprctlError(`Cannot serialize value to Lua: ${String(value)}`, []);
 }
 
+/** Returns true when the given value is a plain object whose own enumerable entries
+ *  are all undefined (so toLuaValue would produce an empty `{ ... }` table). */
+function isEmptyAfterUndefinedFilter(value: unknown): boolean {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.values(value as Record<string, unknown>).every((v) => v === undefined);
+}
+
 /**
  * Build a Lua dispatcher call expression, e.g. luaCall("hl.dsp.window.move", { workspace: 3 })
- * -> 'hl.dsp.window.move({ workspace = 3 })'
+ * -> 'hl.dsp.window.move({ workspace = 3 })'. If `arg` is an object whose every
+ * value is undefined (or null), it is treated as a no-arg call so the result is
+ * `path()` rather than the noisy `path({  })`.
  */
 export function luaCall(path: string, arg?: unknown): string {
   if (arg === undefined) return `${path}()`;
+  if (isEmptyAfterUndefinedFilter(arg)) return `${path}()`;
   return `${path}(${toLuaValue(arg)})`;
 }
 

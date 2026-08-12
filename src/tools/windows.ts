@@ -5,12 +5,22 @@ import {
   focusWindowExpr,
   closeWindowExpr,
   killActiveWindowExpr,
+  killWindowExpr,
+  sendWindowSignalExpr,
   moveWindowToWorkspaceExpr,
   moveActiveWindowExpr,
   resizeActiveWindowExpr,
   toggleFloatingExpr,
+  togglePseudoTiledExpr,
   toggleFullscreenExpr,
+  setFullscreenStateExpr,
   pinWindowExpr,
+  bringWindowToTopExpr,
+  centerWindowExpr,
+  cycleNextWindowExpr,
+  swapWindowExpr,
+  alterZOrderExpr,
+  toggleSwallowExpr,
 } from "../dispatch-expressions.js";
 
 function text(payload: unknown) {
@@ -22,6 +32,30 @@ function text(payload: unknown) {
       },
     ],
   };
+}
+
+/** Map common POSIX signal names to their numbers. Returns null for unknown names. */
+const SIGNAL_MAP: Record<string, number> = {
+  SIGHUP: 1,
+  SIGINT: 2,
+  SIGQUIT: 3,
+  SIGKILL: 9,
+  SIGUSR1: 10,
+  SIGUSR2: 11,
+  SIGTERM: 15,
+  SIGCHLD: 17,
+  SIGCONT: 18,
+  SIGSTOP: 19,
+  SIGTTIN: 21,
+  SIGTTOU: 22,
+};
+
+function signalToNumber(signal: string): number | null {
+  const upper = signal.toUpperCase();
+  if (upper in SIGNAL_MAP) return SIGNAL_MAP[upper];
+  const num = Number(upper.replace(/^SIG/, ""));
+  if (!Number.isNaN(num) && num > 0 && num < 64) return num;
+  return null;
 }
 
 export function registerWindowTools(server: McpServer) {
@@ -96,13 +130,13 @@ export function registerWindowTools(server: McpServer) {
         .describe(
           "Window address or selector to move. Omit to move the currently active window.",
         ),
-      silent: z
+      follow: z
         .boolean()
         .optional()
-        .describe("If true, move without switching focus to that workspace"),
+        .describe("If false, move without switching focus to that workspace (default: true, i.e. follow)"),
     },
-    async ({ workspace, target, silent }) => {
-      const out = await dispatchLua(moveWindowToWorkspaceExpr({ workspace, target, silent }));
+    async ({ workspace, target, follow }) => {
+      const out = await dispatchLua(moveWindowToWorkspaceExpr({ workspace, target, follow }));
       return text(out || `Moved window to workspace ${workspace}`);
     },
   );
@@ -154,24 +188,183 @@ export function registerWindowTools(server: McpServer) {
       mode: z
         .enum(["full", "maximize"])
         .optional()
-        .describe("full = real fullscreen (0), maximize = maximized-but-windowed (1). Defaults to full."),
+        .describe('full = real fullscreen (mode="fullscreen"), maximize = maximized-but-windowed (mode="maximized"). Defaults to full.'),
     },
     async ({ mode }) => {
-      const out = await dispatchLua(toggleFullscreenExpr(mode));
+      const out = await dispatchLua(toggleFullscreenExpr({ mode }));
       return text(out || "Toggled fullscreen");
     },
   );
 
   server.tool(
     "pin_window",
-    "Pin the active window so it stays visible across all workspaces. Only works on FLOATING " +
+    "Pin a window so it stays visible across all workspaces. Only works on FLOATING " +
       "windows — Hyprland rejects pinning a tiled window with a 'Window does not qualify to be " +
       "pinned' warning (not an error; the call succeeds but has no effect). Use toggle_floating " +
-      "first if this warns and the window should stay pinned.",
+      "first if this warns and the window should stay pinned. Optionally target a specific window " +
+      "by address/selector instead of the active one.",
+    {
+      target: z
+        .string()
+        .optional()
+        .describe("Window address or selector; omit for active window"),
+      action: z
+        .enum(["toggle", "enable", "disable"])
+        .optional()
+        .describe("toggle (default), enable, or disable pinning. Omit for toggle."),
+    },
+    async ({ target, action }) => {
+      const out = await dispatchLua(pinWindowExpr({ action, target }));
+      return text(out || `Toggled pin on window ${target ?? "active"}`);
+    },
+  );
+
+  server.tool(
+    "kill_window",
+    "Kill a specific window by address/selector with SIGKILL (same as kill_active_window but " +
+      "for a targeted window instead of just the active one). Use close_window for a graceful " +
+      "close instead.",
+    {
+      target: z
+        .string()
+        .describe("Window address ('0x...') or selector ('class:^(kitty)$')"),
+    },
+    async ({ target }) => {
+      const out = await dispatchLua(killWindowExpr(target));
+      return text(out || `Killed window matching ${target}`);
+    },
+  );
+
+  server.tool(
+    "send_window_signal",
+    "Send a POSIX signal to the process owning a window. Signal names work if prefixed with " +
+      "'SIG' (e.g. 'SIGKILL', 'SIGTERM', 'SIGUSR1'). Use this for graceful termination " +
+      "(SIGTERM = 15) or custom signals (SIGUSR1 = 10, SIGUSR2 = 11). Only affects the window's " +
+      "own process, not its children.",
+    {
+      target: z
+        .string()
+        .describe("Window address or selector; omit for active window"),
+      signal: z
+        .union([z.number(), z.string()])
+        .describe("POSIX signal number (e.g. 9 for SIGKILL, 15 for SIGTERM) or name (e.g. 'SIGUSR1')"),
+    },
+    async ({ target, signal }) => {
+      const sigNum = typeof signal === "string" ? signalToNumber(signal) : signal;
+      if (sigNum === null) {
+        throw new Error(
+          `Unknown signal name '${signal}'. Use a numeric signal or a standard name like SIGKILL, SIGTERM, SIGUSR1, etc.`,
+        );
+      }
+      const out = await dispatchLua(sendWindowSignalExpr({ signal: sigNum, target }));
+      return text(out || `Sent signal ${sigNum} to window ${target ?? "active"}`);
+    },
+  );
+
+  server.tool(
+    "toggle_pseudo_tiled",
+    "Toggle pseudotiling state for a window (or the active one if no target given). A " +
+      "pseudotiled window is tiled normally but drawn with floating decorations/behavior — " +
+      "useful for having a window fill a tile without true floating semantics.",
+    {
+      target: z.string().optional().describe("Window address or selector; omit for active window"),
+      action: z
+        .enum(["toggle", "enable", "disable"])
+        .optional()
+        .describe("toggle (default), enable, or disable pseudotiling"),
+    },
+    async ({ target, action }) => {
+      const out = await dispatchLua(togglePseudoTiledExpr({ action, target }));
+      return text(out || `Toggled pseudotiling on window ${target ?? "active"}`);
+    },
+  );
+
+  server.tool(
+    "bring_window_to_top",
+    "Bring a window to the top of the z-order (above other overlapping windows). If the window " +
+      "is tiled, this has no visible effect — only meaningful for floating/overlapping windows.",
+    {
+      target: z.string().optional().describe("Window address or selector; omit for active window"),
+    },
+    async ({ target }) => {
+      const out = await dispatchLua(bringWindowToTopExpr(target));
+      return text(out || `Brought window to top: ${target ?? "active"}`);
+    },
+  );
+
+  server.tool(
+    "center_window",
+    "Center the active (or specified) window on its monitor.",
+    {
+      target: z.string().optional().describe("Window address or selector; omit for active window"),
+    },
+    async ({ target }) => {
+      const out = await dispatchLua(centerWindowExpr(target));
+      return text(out || `Centered window ${target ?? "active"}`);
+    },
+  );
+
+  server.tool(
+    "cycle_next_window",
+    "Cycle focus to the next window (or previous with next=false). Can filter to only tiled/" +
+      "floating windows. Same as the old 'cyclenext' dispatcher.",
+    {
+      next: z.boolean().optional().describe("true (default) for next, false for previous"),
+      tiled: z.boolean().optional().describe("Only cycle among tiled windows"),
+      floating: z.boolean().optional().describe("Only cycle among floating windows"),
+      target: z.string().optional().describe("Window address or selector; omit for active window"),
+    },
+    async ({ next, tiled, floating, target }) => {
+      const out = await dispatchLua(cycleNextWindowExpr({ next, tiled, floating, target }));
+      return text(out || "Cycled to next window");
+    },
+  );
+
+  server.tool(
+    "swap_window",
+    "Swap the active (or specified) window with another window. Provide exactly one of: " +
+      "direction (adjacent in that direction), next (next in focus order), prev (previous), " +
+      "or target (swap with that specific window).",
+    {
+      direction: z
+        .enum(["l", "r", "u", "d"])
+        .optional()
+        .describe("Swap with the window adjacent in this direction"),
+      next: z.boolean().optional().describe("Swap with the next window in focus order"),
+      prev: z.boolean().optional().describe("Swap with the previous window in focus order"),
+      target: z
+        .string()
+        .optional()
+        .describe("Window address or selector to swap with; omit for active window"),
+    },
+    async ({ direction, next, prev, target }) => {
+      const out = await dispatchLua(swapWindowExpr({ direction, next, prev, target }));
+      return text(out || "Swapped window");
+    },
+  );
+
+  server.tool(
+    "alter_z_order",
+    "Move a window to the top or bottom of the z-order stack.",
+    {
+      mode: z.enum(["top", "bottom"]).describe("Place the window at the top or bottom"),
+      target: z.string().optional().describe("Window address or selector; omit for active window"),
+    },
+    async ({ mode, target }) => {
+      const out = await dispatchLua(alterZOrderExpr({ mode, target }));
+      return text(out || `Moved window to z-order ${mode}`);
+    },
+  );
+
+  server.tool(
+    "toggle_swallow",
+    "Toggle whether swallowed windows are visible (swallowing lets a terminal " +
+      "e.g. hide itself when a child dialog opens, so the dialog appears in the same " +
+      "slot). Toggling this flips the visibility of all swallowed windows system-wide.",
     {},
     async () => {
-      const out = await dispatchLua(pinWindowExpr());
-      return text(out || "Toggled pin on active window");
+      const out = await dispatchLua(toggleSwallowExpr());
+      return text(out || "Toggled swallowed window visibility");
     },
   );
 }
