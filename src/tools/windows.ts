@@ -197,6 +197,41 @@ export function registerWindowTools(server: McpServer) {
   );
 
   server.tool(
+    "set_fullscreen_state",
+    "Set the fullscreen state of a window explicitly, controlling the internal (layout) and " +
+      "client (window) fullscreen flags independently. Unlike toggle_fullscreen (which toggles " +
+      "the common full/maximized modes), use this to force an exact combination — e.g. " +
+      "internal=true, client=false for a layout-aware fullscreen that keeps the window's own " +
+      "decorations.",
+    {
+      internal: z
+        .boolean()
+        .describe("Whether the window is fullscreen from the layout's perspective"),
+      client: z
+        .boolean()
+        .describe("Whether the window itself is fullscreen (clients usually honour this directly)"),
+      action: z
+        .enum(["toggle", "set", "unset"])
+        .optional()
+        .describe("toggle (default), set, or unset the given state"),
+      layout_aware: z
+        .boolean()
+        .optional()
+        .describe("Whether to apply the state in a layout-aware way (default: Hyprland's own)"),
+      target: z
+        .string()
+        .optional()
+        .describe("Window address or selector; omit for active window"),
+    },
+    async ({ internal, client, action, layout_aware, target }) => {
+      const out = await dispatchLua(
+        setFullscreenStateExpr({ internal, client, action, layout_aware, target }),
+      );
+      return text(out || `Set fullscreen state (internal=${internal}, client=${client})`);
+    },
+  );
+
+  server.tool(
     "pin_window",
     "Pin a window so it stays visible across all workspaces. Only works on FLOATING " +
       "windows — Hyprland rejects pinning a tiled window with a 'Window does not qualify to be " +
