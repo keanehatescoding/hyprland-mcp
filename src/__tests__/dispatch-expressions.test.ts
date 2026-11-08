@@ -235,15 +235,22 @@ describe("window dispatch expressions", () => {
 
   test("setFullscreenStateExpr", () => {
     assert.equal(
-      setFullscreenStateExpr({ internal: true, client: false, action: "set", target: "0x1" }),
-      'hl.dsp.window.fullscreen_state({ internal = true, client = false, action = "set", window = "address:0x1" })',
+      setFullscreenStateExpr({ internal: 2, client: 0, action: "set", target: "0x1" }),
+      'hl.dsp.window.fullscreen_state({ internal = 2, client = 0, action = "set", window = "address:0x1" })',
     );
   });
 
   test("setFullscreenStateExpr without optional params", () => {
     assert.equal(
-      setFullscreenStateExpr({ internal: false, client: true }),
-      "hl.dsp.window.fullscreen_state({ internal = false, client = true })",
+      setFullscreenStateExpr({ internal: 0, client: 2 }),
+      "hl.dsp.window.fullscreen_state({ internal = 0, client = 2 })",
+    );
+  });
+
+  test("setFullscreenStateExpr supports maximized + fullscreen modes", () => {
+    assert.equal(
+      setFullscreenStateExpr({ internal: 3, client: 1 }),
+      "hl.dsp.window.fullscreen_state({ internal = 3, client = 1 })",
     );
   });
 

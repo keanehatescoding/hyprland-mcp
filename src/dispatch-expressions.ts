@@ -124,10 +124,23 @@ export function toggleFullscreenExpr(opts?: {
   });
 }
 
-/** CONFIRMED (wiki 0.56): hl.dsp.window.fullscreen_state({ internal, client, action?, layout_aware?, window? }) */
+/**
+ * Numeric fullscreen mode used by the `internal`/`client` fields of
+ * hl.dsp.window.fullscreen_state: 0 = not fullscreen, 1 = maximized,
+ * 2 = fullscreen, 3 = maximized + fullscreen.
+ */
+export type FullscreenStateMode = 0 | 1 | 2 | 3;
+
+/**
+ * CONFIRMED (wiki 0.56 + Hyprland 0.56 Lua bindings):
+ * hl.dsp.window.fullscreen_state({ internal, client, action?, layout_aware?, window? }).
+ * `internal` and `client` are numeric modes (0-3), NOT booleans — the Lua binding
+ * reads them as numbers, so `true`/`false` would be ignored. `action` defaults to
+ * "set" upstream; pass "toggle"/"unset" to override.
+ */
 export function setFullscreenStateExpr(opts: {
-  internal: boolean;
-  client: boolean;
+  internal: FullscreenStateMode;
+  client: FullscreenStateMode;
   action?: "toggle" | "set" | "unset";
   layout_aware?: boolean;
   target?: string;
