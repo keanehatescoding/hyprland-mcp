@@ -58,6 +58,18 @@ function signalToNumber(signal: string): number | null {
   return null;
 }
 
+/**
+ * Hyprland's internal/client fullscreen flags are numeric modes, not booleans.
+ * 0 = not fullscreen, 1 = maximized, 2 = fullscreen, 3 = maximized + fullscreen.
+ */
+function fullscreenStateModeSchema(label: string) {
+  return z
+    .union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)])
+    .describe(
+      `${label}: 0 = not fullscreen, 1 = maximized, 2 = fullscreen, 3 = maximized + fullscreen`,
+    );
+}
+
 export function registerWindowTools(server: McpServer) {
   server.tool(
     "list_windows",
@@ -193,6 +205,37 @@ export function registerWindowTools(server: McpServer) {
     async ({ mode }) => {
       const out = await dispatchLua(toggleFullscreenExpr({ mode }));
       return text(out || "Toggled fullscreen");
+    },
+  );
+
+  server.tool(
+    "set_fullscreen_state",
+    "Set the fullscreen state of a window explicitly, controlling the internal (layout) and " +
+      "client (window) fullscreen flags independently. Unlike toggle_fullscreen (which toggles " +
+      "the common full/maximized modes), use this to force an exact combination — e.g. " +
+      "internal=2, client=0 for a layout-aware fullscreen that keeps the window's own " +
+      "decorations.",
+    {
+      internal: fullscreenStateModeSchema("Layout-level fullscreen mode"),
+      client: fullscreenStateModeSchema("Client-level fullscreen mode"),
+      action: z
+        .enum(["toggle", "set", "unset"])
+        .optional()
+        .describe("set (default), toggle, or unset the given state"),
+      layout_aware: z
+        .boolean()
+        .optional()
+        .describe("Whether to apply the state in a layout-aware way (default: Hyprland's own)"),
+      target: z
+        .string()
+        .optional()
+        .describe("Window address or selector; omit for active window"),
+    },
+    async ({ internal, client, action, layout_aware, target }) => {
+      const out = await dispatchLua(
+        setFullscreenStateExpr({ internal, client, action, layout_aware, target }),
+      );
+      return text(out || `Set fullscreen state (internal=${internal}, client=${client})`);
     },
   );
 
