@@ -287,6 +287,7 @@ export function registerWindowTools(server: McpServer) {
     {
       target: z
         .string()
+        .optional()
         .describe("Window address or selector; omit for active window"),
       signal: z
         .union([z.number(), z.string()])
