@@ -1,0 +1,1 @@
+# Throwaway file: tests the protected-path merge gate (fix70). Safe to delete.
