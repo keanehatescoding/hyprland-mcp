@@ -10,7 +10,7 @@
  * Last validated against: Hyprland 0.56.2 (Lua stubs at /usr/share/hypr/stubs/hl.meta.lua
  * and wiki.hypr.land/0.56.0/Configuring/Basics/Dispatchers/).
  */
-import { luaCall } from "./hyprctl.js";
+import { luaCall, toLuaValue } from "./hyprctl.js";
 
 export function selectorFor(target: string): string {
   return target.startsWith("0x") ? `address:${target}` : target;
@@ -384,7 +384,10 @@ export function execRawExpr(cmd: string): string {
  */
 export function execCmdExpr(cmd: string, rules?: Record<string, unknown>): string {
   if (rules) {
-    return luaCall("hl.dsp.exec_cmd", [cmd, rules]);
+    // hl.dsp.exec_cmd takes the command and the optional rules table as two
+    // separate positional arguments (per the Hyprland 0.56 Lua stubs:
+    // exec_cmd(cmd: string, rules?: table<...>)), NOT a single nested table.
+    return `hl.dsp.exec_cmd(${toLuaValue(cmd)}, ${toLuaValue(rules)})`;
   }
   return luaCall("hl.dsp.exec_cmd", cmd);
 }
