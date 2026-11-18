@@ -498,7 +498,7 @@ describe("general dispatch expressions", () => {
   test("execCmdExpr with rules", () => {
     assert.equal(
       execCmdExpr("firefox", { title: "Firefox" }),
-      'hl.dsp.exec_cmd({ "firefox", { title = "Firefox" } })',
+      'hl.dsp.exec_cmd("firefox", { title = "Firefox" })',
     );
   });
 
